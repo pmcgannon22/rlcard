@@ -55,7 +55,7 @@ def is_valid_scout_segment(cards_in_segment):
     return True
 
 
-def find_all_scout_segments(hand: list[Card]):
+def find_all_scout_segments(hand: list[Card]) -> tuple[int, int, list[Card]]:
     """
     Returns a list of all valid Scout segments (each segment is a contiguous
     slice of the hand). 
@@ -72,7 +72,7 @@ def find_all_scout_segments(hand: list[Card]):
             cards_in_segment = hand[i:j]
             if is_valid_scout_segment(cards_in_segment):
                 # We'll store (start, end) or just the list of cards
-                valid_segments.append((i, j))
+                valid_segments.append((i, j, cards_in_segment))
     return valid_segments
 
 
@@ -131,10 +131,10 @@ def segment_strength_rank(cards: list[Card]):
 
         # Run => ranks ascending in the order they appear
         # The last card has the highest rank
-        return max(cards[0], cards[-1])
+        return max(cards[0].rank, cards[-1].rank)
 
 def get_action_list():
-    MAX_HAND = 12
+    MAX_HAND = 16
     ACTION_LIST = {}
     # Fill ACTION_LIST with every possible (start_pos, end_pos) for playing
     for start_pos in range(MAX_HAND):

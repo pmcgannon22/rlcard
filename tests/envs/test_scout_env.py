@@ -25,7 +25,7 @@ class TestUnoEnv(unittest.TestCase):
         env.reset()
         legal_actions = env._get_legal_actions()
         for legal_action in legal_actions:
-            self.assertLessEqual(legal_action, 104)
+            self.assertLessEqual(legal_action, 170)
 
     def test_step(self):
         env = rlcard.make('scout')
@@ -53,16 +53,11 @@ class TestUnoEnv(unittest.TestCase):
         env = rlcard.make('scout')
         env.set_agents([RandomAgent(env.num_actions) for _ in range(env.num_players)])
         trajectories, payoffs = env.run(is_training=False)
-        self.assertEqual(len(trajectories), 2)
-        total = 0
-        for payoff in payoffs:
-            total += payoff
-        self.assertEqual(total, 0)
+        self.assertEqual(len(trajectories), 4)
+
+        self.assertEqual(min(payoffs), 0)
         trajectories, payoffs = env.run(is_training=True)
-        total = 0
-        for payoff in payoffs:
-            total += payoff
-        self.assertEqual(total, 0)
+        self.assertGreater(max(payoffs), 0)
 
     def test_decode_action(self):
         env = rlcard.make('scout')

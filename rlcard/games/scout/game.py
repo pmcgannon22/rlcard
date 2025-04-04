@@ -13,10 +13,10 @@ class ScoutGame:
         self.num_players = num_players
         # self.payoffs = [0 for _ in range(self.num_players)]
     
-    def configure(self, game_config):
-        ''' Specifiy some game specific parameters, such as number of players
-        '''
-        self.num_players = game_config['game_num_players']
+    # def configure(self, game_config):
+    #     ''' Specifiy some game specific parameters, such as number of players
+    #     '''
+    #     self.num_players = game_config['game_num_players']
 
     def init_game(self):
         ''' Initialize players and state
@@ -63,8 +63,7 @@ class ScoutGame:
             his_players = deepcopy(self.players)
             self.history.append((his_dealer, his_players, his_round))
 
-        self.round.proceed_round(action)
-        player_id = self.round.current_player_id
+        player_id, _ = self.round.proceed_round(action)
         state = self.round.get_state(player_id)
         return state, player_id
     
@@ -74,10 +73,10 @@ class ScoutGame:
     def get_num_players(self):
         ''' Return the number of players in the game
         '''
-        return 2
+        return self.num_players
     
     def get_num_actions(self):
-        return 104
+        return 170
 
     def get_player_id(self):
         ''' Return the current player that will take actions soon
@@ -94,3 +93,6 @@ class ScoutGame:
     
     def get_legal_actions(self) -> list[ScoutEvent]:
         return self.round.get_legal_actions()
+    
+    def get_state(self, player_id):
+        return self.round.get_state(player_id)

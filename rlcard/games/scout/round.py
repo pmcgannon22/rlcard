@@ -111,11 +111,11 @@ class ScoutRound:
          2) Must be stronger than self.table_set (longer or higher if same length).
         """
         # Retrieve the chosen cards
-        if end_idx < start_idx or end_idx >= len(player.hand) or start_idx < 0:
+        if end_idx < start_idx or end_idx > len(player.hand) or start_idx < 0:
             print(f"Invalid Play. {start_idx=}{end_idx=}, but {len(player.hand)=}")
             return False
 
-        chosen_cards = player.hand[end_idx:start_idx]
+        chosen_cards = player.hand[start_idx:end_idx]
 
         # Check consecutive run or same-value group. 
         # Implementation depends on your representation of cards.
@@ -142,7 +142,7 @@ class ScoutRound:
         return ScoutJudger.compute_rewards(self.players)
         # return ScoutJudger.judge_game(self.players, self.table_owner)
 
-    def get_state(self, player_id):
+    def get_state(self, player_id: int):
         """
         RLCard typically requires a method to get the state
         from the perspective of a given player_id
@@ -176,13 +176,13 @@ class ScoutRound:
         # 1) Generate all valid sets the player could play
         possible_sets = find_all_scout_segments(player.hand)
         for s in possible_sets:
-            if not self.table_set or self._is_stronger_set(s, self.table_set):
+            if not self.table_set or self._is_stronger_set(s[2], self.table_set):
                 all_actions.append(PlayAction(s[0], s[1]))
 
         # 2) Scout actions
         # For each card in table_set, for each insertion position in player's hand
         if len(self.table_set) > 0:
-            for insert_pos in range(len(player.hand) + 1):
+            for insert_pos in range(len(player.hand)):
                 all_actions.append(ScoutAction(True, insert_pos))
                 if len(self.table_set) > 1:
                     all_actions.append(ScoutAction(False, insert_pos)) 
