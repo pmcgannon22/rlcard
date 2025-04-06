@@ -1,3 +1,5 @@
+from typing import Self
+
 class ScoutCard:
     def __init__(self, top, bottom):
         ''' Initialize the class of ScoutCard
@@ -20,16 +22,27 @@ class ScoutCard:
         return f"{self.top}/{self.bottom}"
 
     @staticmethod
-    def print_cards(cards):
-        ''' Print out card in a nice form
+    def print_cards(cards: list[Self]):
+        ''' Print out card(s) in a nice form
 
         Args:
-            card (str or list): The string form or a list of a UNO card
+            cards (ScoutCard or list): A single card or a list of ScoutCards
         '''
-        if isinstance(cards, str):
+        if not isinstance(cards, list):
             cards = [cards]
-        for i, card in enumerate(cards):
-            print(card.get_str())
+        
+        output = []
+        for card in cards:
+            if isinstance(card, ScoutCard):
+                output.append(card.get_str())
+            else:
+                # Handle potential errors if non-ScoutCard objects are passed
+                output.append(str(card)) 
+                
+        print(', '.join(output))
 
-            if i < len(cards) - 1:
-                print(', ', end='')
+    def __repr__(self):
+        return self.get_str()
+    
+    def __str__(self):
+        return self.get_str()

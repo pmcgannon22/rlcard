@@ -89,6 +89,7 @@ class ScoutRound:
 
             # If consecutive_scouts == num_players, round ends
             if self.consecutive_scouts == self.num_players - 1:
+                print( "All players have scouted consecutively, round ends.")
                 self.game_over = True
 
         else:
@@ -176,8 +177,8 @@ class ScoutRound:
         # 1) Generate all valid sets the player could play
         possible_sets = find_all_scout_segments(player.hand)
         for s in possible_sets:
-            if not self.table_set or self._is_stronger_set(s[2], self.table_set):
-                all_actions.append(PlayAction(s[0], s[1]))
+            if not self.table_set or self._is_stronger_set(s['cards'], self.table_set):
+                all_actions.append(PlayAction(s['start'], s['end']))
 
         # 2) Scout actions
         # For each card in table_set, for each insertion position in player's hand
@@ -188,35 +189,6 @@ class ScoutRound:
                     all_actions.append(ScoutAction(False, insert_pos)) 
 
         return all_actions
-
-    def _find_all_sets_in_hand(self, player):
-        """
-        Find all valid sets (contiguous segments) in the player's hand, respecting Scout rules:
-        - Single card is valid (if your Scout variant allows singles).
-        - Run: strictly ascending ranks in consecutive hand positions.
-        - Group: all the same rank in consecutive hand positions.
-        Returns a list of dicts, where each dict might be:
-        {
-            'positions': [start_index, start_index+1, ... end_index-1],
-            'cards': [Card(...) objects]
-        }
-        """
-        valid_sets = []
-        hand = player.hand
-        n = len(hand)
-
-        # Enumerate all contiguous slices [i:j] in the hand
-        for i in range(n):
-            for j in range(i+1, n+1):  
-                segment = hand[i:j]  # cards from i..j-1
-                # If it's at least 1 card (singles allowed in Scout) or 2 if your rules require:
-                if is_valid_scout_segment(segment):
-                    valid_sets.append({
-                        'positions': list(range(i, j)),
-                        'cards': segment
-                    })
-
-        return valid_sets
 
     def _is_stronger_set(self, chosen_cards: list[Card], current_set: list[Card]):
         """

@@ -12,9 +12,9 @@ ACTION_FROM_ID = {v: k for k, v in ACTION_LIST.items()}
 class TestUnoEnv(unittest.TestCase):
 
     def test_reset_and_extract_state(self):
-        env = rlcard.make('uno')
+        env = rlcard.make('scout')
         state, _ = env.reset()
-        self.assertEqual(state['obs'].size, 240)
+        self.assertEqual(state['obs'].size, 2 * 12 * 12)
 
     def test_is_deterministic(self):
         self.assertTrue(is_deterministic('scout'))

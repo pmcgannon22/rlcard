@@ -1,78 +1,98 @@
+from typing import TypedDict
+
 from ..card import ScoutCard as Card
+
+class CardSegment(TypedDict):
+    start: int
+    end: int
+    cards: list[Card]
 
 def init_deck() -> list[Card]:
     return [Card(top, bottom) for top in range(1, 11) for bottom in range(top + 1, 11)]
 
-def is_valid_scout_segment(cards_in_segment):
+def is_valid_scout_segment(cards_in_segment: list[Card]) -> bool:
     """
     Returns True if the consecutive slice of the hand (cards_in_segment)
-    forms a valid Scout set: either a run or a group, *without reordering*.
+    forms a valid Scout set without reordering.
+    A valid set is:
+    - A group of 2 or more cards with the same rank.
+    - A run of 2 or more cards with strictly ascending ranks (diff = +1).
+    - A run of 2 or more cards with strictly descending ranks (diff = -1).
     """
-    # For Scout, usually sets must be at least length 2 (or 3, depending on your variant).
-    # """
-    # A Scout set can be (depending on variant):
-    # - A single card (often allowed in Scout).
-    # - A run of length >= 2 (strictly ascending ranks, in consecutive hand positions).
-    # - A group of length >= 2 (identical ranks, in consecutive hand positions).
-    # Returns True if `chosen_cards` form a valid set.
-    # """
-    # length = len(chosen_cards)
-    # if length == 0:
-    #     return False
+    length = len(cards_in_segment)
 
-    # # 1) Single card allowed?
-    # if length == 1:
-    #     return True
-
-    # # 2) Check if all same rank (group)
-    # #    For example, [7,7,7]
-    # same_rank = all(c.rank == chosen_cards[0].rank for c in chosen_cards)
-    # if same_rank:
-    #     return True
-
-    # # 3) Check for ascending run in the order given (no re-sorting!)
-    # #    e.g., ranks [3,4,5] => differences are [1,1]
-    # for idx in range(length - 1):
-    #     if chosen_cards[idx+1].rank - chosen_cards[idx].rank != 1:
-    #         return False
-
-    # return True
-    # if len(cards_in_segment) < 2:
-        # return False
+    # Segments must generally have at least 2 cards to be a group or run.
+    # Adjust this if single cards are considered valid segments in your rules.
+    if length < 2:
+        # If single cards were valid, you would return True here.
+        # Based on the original logic checking pairs, assuming runs/groups need >= 2.
+        return True 
     
-    # Check if they're all the same rank (group)
-    if all(card.rank == cards_in_segment[0].rank for card in cards_in_segment):
+    # 1. Check if they're all the same rank (group)
+    first_rank = cards_in_segment[0].rank
+    is_group = all(card.rank == first_rank for card in cards_in_segment)
+    if is_group:
         return True
 
-    # Check for ascending run: strictly increasing by 1 rank each step,
-    # in the order they appear (no sorting).
-    for i in range(len(cards_in_segment) - 1):
+    # 2. If not a group, check for runs (ascending or descending)
+    # We need to check if *all* differences are +1 OR *all* differences are -1.
+    
+    is_ascending_run = True
+    is_descending_run = True
+
+    for i in range(length - 1):
         curr_rank = cards_in_segment[i].rank
         next_rank = cards_in_segment[i+1].rank
-        if next_rank - curr_rank != 1:
-            return False
+        diff = next_rank - curr_rank
 
-    return True
+        # Check ascending condition
+        if diff != 1:
+            is_ascending_run = False
+        
+        # Check descending condition
+        if diff != -1:
+            is_descending_run = False
+
+        # Optimization: if it's neither type of run so far, we can stop checking.
+        if not is_ascending_run and not is_descending_run:
+            return False 
+
+    # If the loop completes, the segment is valid if it was *either*
+    # a consistent ascending run OR a consistent descending run.
+    # Note: A segment cannot be both simultaneously if length >= 2.
+    return is_ascending_run or is_descending_run
 
 
-def find_all_scout_segments(hand: list[Card]) -> tuple[int, int, list[Card]]:
+def find_all_scout_segments(hand: list[Card]) -> list[CardSegment]:
     """
     Returns a list of all valid Scout segments (each segment is a contiguous
     slice of the hand). 
-    Each element in the returned list will be a tuple: (start_index, end_index).
-    The slice is [start_index, start_index+1, ..., end_index-1].
+    Each element in the returned list is a dictionary containing:
+        'start': starting index (inclusive)
+        'end': ending index (exclusive)
+        'cards': the list of ScoutCard objects in the segment
     """
-    valid_segments = []
+    valid_segments: list[CardSegment] = []
     n = len(hand)
 
     # Explore all contiguous slices: i is start, j is end (exclusive)
     for i in range(n):
-        for j in range(i+1, n+1):  
+        # Check segments of length 2 or more
+        for j in range(i + 2, n + 1):  # Start j from i+2 for length >= 2 slices
             # slice is hand[i:j], which includes i..(j-1)
             cards_in_segment = hand[i:j]
+            
+            # Check if this slice is a valid group or run
             if is_valid_scout_segment(cards_in_segment):
-                # We'll store (start, end) or just the list of cards
-                valid_segments.append((i, j, cards_in_segment))
+                valid_segments.append({
+                    'start': i,
+                    'end': j,
+                    'cards': cards_in_segment
+                })
+                
+    for i in range(n):
+        valid_segments.append({'start': i, 'end': i+1, 'cards': [hand[i]]})
+        
     return valid_segments
 
 

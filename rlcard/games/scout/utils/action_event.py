@@ -21,6 +21,12 @@ class ScoutEvent:
             return ScoutAction(vals[1] == 'front', int(vals[2]))
         else:
             raise Exception(f"Do not recognize {action_id=}")
+        
+    def __str__(self):
+        return self.get_action_repr()
+    
+    def __repr__(self):
+        return self.get_action_repr()
 
 class ScoutAction(ScoutEvent):
     def __init__(self, from_front: bool, insertion_in_hand: int):
@@ -34,6 +40,9 @@ class ScoutAction(ScoutEvent):
     def __str__(self) -> str:
         return self.get_action_repr()
 
+    def __repr__(self):
+        return self.get_action_repr()
+
 class PlayAction(ScoutEvent):
     def __init__(self, start_idx: int, end_idx: int):
         self.start_idx = start_idx
@@ -44,4 +53,7 @@ class PlayAction(ScoutEvent):
         return f"play-{self.start_idx}-{self.end_idx}"
 
     def __str__(self):
+        return self.get_action_repr()
+    
+    def __repr__(self):
         return self.get_action_repr()
