@@ -10,13 +10,20 @@ from rlcard.games.scout.utils.action_event import ScoutEvent
 ACTION_SPACE = get_action_list()
 ACTION_LIST = list(ACTION_SPACE.keys())
 
+DEFAULT_GAME_CONFIG = {
+    'game_num_players': 4,
+    'hand_size': 16,  # Maximum number of cards in hand
+    'allow_step_back': False
+}
+
 class ScoutEnv(Env):
-    def __init__(self, config):
+    def __init__(self, config: dict):
         self.name = 'scout'
+        self.hand_size = config.get('hand_size', DEFAULT_GAME_CONFIG['hand_size'])
         # self.default_game_config = DEFAULT_GAME_CONFIG
         self.game = Game()
         super().__init__(config)
-        self.state_shape = [[2, 12, 11] for _ in range(self.num_players)]
+        self.state_shape = [[2, self.hand_size, self.hand_size] for _ in range(self.num_players)]
         self.action_shape = [None for _ in range(self.num_players)]
 
     def _extract_state(self, raw_state):
@@ -28,18 +35,18 @@ class ScoutEnv(Env):
             # ...
         }
         """
-        obs = np.zeros((2, 12, 12), dtype=int)  # shape=(2, N=12, R=12)
+        obs = np.zeros((2, self.hand_size, self.hand_size), dtype=int)  # shape=(2, N=12, R=12)
 
         # 1) Encode player's hand
         for i, card in enumerate(raw_state['hand']):
-            if i >= 12:
-                break  # we only have space for 12
+            if i >= self.hand_size:
+                break  # Limit to hand_size
             rank = card.rank  # must be in range [0..11] or [1..11] etc.
             obs[0, i, rank] = 1
 
         # 2) Encode table set
         for j, card in enumerate(raw_state['table_set']):
-            if j >= 12:
+            if j >= self.hand_size:
                 break
             rank = card.rank
             obs[1, j, rank] = 1
@@ -55,7 +62,7 @@ class ScoutEnv(Env):
         return extracted_state
 
     def get_payoffs(self):
-         return self.game.get_payoffs()
+         return np.array(self.game.get_payoffs())
 
     def _decode_action(self, action_id):
         # legal_ids = self._get_legal_actions()

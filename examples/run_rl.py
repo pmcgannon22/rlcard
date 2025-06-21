@@ -36,7 +36,7 @@ def train(args):
     if args.algorithm == 'dqn':
         from rlcard.agents import DQNAgent
         if args.load_checkpoint_path != "":
-            agent = DQNAgent.from_checkpoint(checkpoint=torch.load(args.load_checkpoint_path))
+            agent = DQNAgent.from_checkpoint(checkpoint=torch.load(args.load_checkpoint_path, weights_only=False))
         else:
             agent = DQNAgent(
                 num_actions=env.num_actions,
@@ -122,6 +122,7 @@ if __name__ == '__main__':
             'uno',
             'gin-rummy',
             'bridge',
+            'scout'
         ],
     )
     parser.add_argument(

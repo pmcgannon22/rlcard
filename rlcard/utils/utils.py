@@ -183,7 +183,7 @@ def remove_illegal(action_probs, legal_actions):
         probability vector
 
     Args:
-        action_probs (numpy.array): A 1 dimention numpy array.
+        action_probs (numpy.array): A 1 dimension numpy array.
         legal_actions (list): A list of indices of legal actions.
 
     Returns:
@@ -205,7 +205,7 @@ def tournament(env, num):
         num (int): The number of games to play.
 
     Returns:
-        A list of avrage payoffs for each player
+        A list of average payoffs for each player
     '''
     payoffs = [0 for _ in range(env.num_players)]
     counter = 0

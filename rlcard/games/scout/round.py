@@ -102,6 +102,10 @@ class ScoutRound:
         next_player_id = (self.current_player_id + 1) % self.num_players
         self.current_player_id = next_player_id
 
+        if not len(self.get_legal_actions()):
+            print("No legal actions left, round ends.")
+            self.game_over = True
+
         return next_player_id, self.game_over
 
     def _validate_play(self, player: ScoutPlayer, start_idx: int, end_idx: int):
@@ -182,7 +186,7 @@ class ScoutRound:
 
         # 2) Scout actions
         # For each card in table_set, for each insertion position in player's hand
-        if len(self.table_set) > 0:
+        if len(self.players[self.current_player_id].hand) < 15 and len(self.table_set) > 0:
             for insert_pos in range(len(player.hand)):
                 all_actions.append(ScoutAction(True, insert_pos))
                 if len(self.table_set) > 1:
