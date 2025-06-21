@@ -1,5 +1,6 @@
 from copy import deepcopy
 import numpy as np
+from typing import List
 
 from rlcard.games.scout import Dealer
 from rlcard.games.scout import Player
@@ -47,21 +48,20 @@ class ScoutGame:
         ''' Get the next state
 
         Args:
-            action (str): A specific action
+            action (ScoutEvent): A specific action
 
         Returns:
             (tuple): Tuple containing:
 
                 (dict): next player's state
-                (int): next plater's id
+                (int): next player's id
         '''
 
         if self.allow_step_back:
             # First snapshot the current state
             his_dealer = deepcopy(self.dealer)
             his_round = deepcopy(self.round)
-            his_players = deepcopy(self.players)
-            self.history.append((his_dealer, his_players, his_round))
+            self.history.append((his_dealer, his_round))
 
         player_id, _ = self.round.proceed_round(action)
         state = self.round.get_state(player_id)
@@ -88,11 +88,24 @@ class ScoutGame:
         '''
         return self.round.game_over
     
-    def get_current_player(self):
-        return self.round.get_current_player()
-    
-    def get_legal_actions(self) -> list[ScoutEvent]:
+    def get_legal_actions(self) -> List[ScoutEvent]:
         return self.round.get_legal_actions()
     
     def get_state(self, player_id):
         return self.round.get_state(player_id)
+    
+    def get_perfect_information(self):
+        ''' Get the perfect information of the current state
+
+        Returns:
+            (dict): A dictionary of all the perfect information of the current state
+        '''
+        state = {}
+        state['num_players'] = self.num_players
+        state['hand_cards'] = [player.hand for player in self.round.players]
+        state['table_set'] = self.round.table_set
+        state['table_owner'] = self.round.table_owner
+        state['current_player'] = self.round.current_player_id
+        state['legal_actions'] = self.round.get_legal_actions()
+        state['consecutive_scouts'] = self.round.consecutive_scouts
+        return state

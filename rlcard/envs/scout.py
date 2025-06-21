@@ -57,6 +57,7 @@ class ScoutEnv(Env):
             'legal_actions': self._get_legal_actions(),
             'raw_obs': raw_state,
             'raw_legal_actions': raw_state['legal_actions'],  # etc.
+            'action_record': self.action_recorder,
         }
 
         return extracted_state

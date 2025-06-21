@@ -1,5 +1,6 @@
 import numpy as np
 from copy import deepcopy
+from typing import List
 from .player import ScoutPlayer
 from .judger import ScoutJudger 
 from .dealer import ScoutDealer 
@@ -170,13 +171,13 @@ class ScoutRound:
         }
         return state
 
-    def get_legal_actions(self):
+    def get_legal_actions(self) -> List[ScoutEvent]:
         """
         Return a list of all possible actions from the perspective
         of the current player, i.e. all sets that can be played + all scout actions.
         """
         player = self.players[self.current_player_id]
-        all_actions: list[ScoutAction] = []
+        all_actions: List[ScoutEvent] = []
 
         # 1) Generate all valid sets the player could play
         possible_sets = find_all_scout_segments(player.hand)
