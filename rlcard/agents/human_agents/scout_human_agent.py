@@ -25,7 +25,7 @@ class HumanAgent(object):
             action (int): The action decided by human
         '''
         _print_state(state['raw_obs'], state['action_record'])
-        action = _get_human_action(state['raw_legal_actions'])
+        action = _get_human_action(state['raw_legal_actions'], state['raw_obs'])
         return action
 
     def eval_step(self, state):
@@ -99,32 +99,64 @@ def print_hand_graphical(hand):
         top_line += '┌─────┐ '
         mid_line += f'│{val}│ '
         bot_line += '└─────┘ '
-        idx_str = str(idx).center(7)
+        # Center the index under the card box (6 characters wide: ┌─────┐ + space)
+        idx_str = str(idx).center(8)
         idx_line += idx_str
-    print(top_line.rstrip())
-    print(mid_line.rstrip())
-    print(bot_line.rstrip())
-    print(idx_line.rstrip())
+    print(top_line)
+    print(mid_line)
+    print(bot_line)
+    print(idx_line)
 
-def _print_action(action):
+def _print_action(action, state=None):
     ''' Print out an action in a nice form
 
     Args:
         action (ScoutEvent): A ScoutEvent action
+        state (dict): The current game state (optional, for enhanced display)
     '''
     if isinstance(action, PlayAction):
-        print(f'PLAY cards at positions {action.start_idx} to {action.end_idx-1}')
+        if state and 'hand' in state:
+            # Get the actual cards being played
+            cards = state['hand'][action.start_idx:action.end_idx]
+            card_strs = [f'[{card.top}/{card.bottom}]' for card in cards]
+            cards_desc = ', '.join(card_strs)
+            print(f'PLAY cards at positions {action.start_idx} to {action.end_idx-1} ({cards_desc})')
+        else:
+            print(f'PLAY cards at positions {action.start_idx} to {action.end_idx-1}')
     elif isinstance(action, ScoutAction):
         direction = "front" if action.from_front else "back"
-        print(f'SCOUT from {direction} of table set, insert at position {action.insertion_in_hand}')
+        if state and 'table_set' in state and state['table_set']:
+            # Get the card being scouted
+            if action.from_front:
+                scout_card = state['table_set'][0]
+            else:
+                scout_card = state['table_set'][-1]
+            card_desc = f'[{scout_card.top}/{scout_card.bottom}]'
+            
+            # Describe insertion position
+            if state and 'hand' in state:
+                hand = state['hand']
+                if action.insertion_in_hand == 0:
+                    pos_desc = f"before [{hand[0].top}/{hand[0].bottom}]"
+                elif action.insertion_in_hand >= len(hand):
+                    pos_desc = f"after [{hand[-1].top}/{hand[-1].bottom}]"
+                else:
+                    pos_desc = f"between [{hand[action.insertion_in_hand-1].top}/{hand[action.insertion_in_hand-1].bottom}], [{hand[action.insertion_in_hand].top}/{hand[action.insertion_in_hand].bottom}]"
+            else:
+                pos_desc = f"at position {action.insertion_in_hand}"
+            
+            print(f'SCOUT {card_desc} from {direction} of table set, insert {pos_desc}')
+        else:
+            print(f'SCOUT from {direction} of table set, insert at position {action.insertion_in_hand}')
     else:
         print(str(action))
 
-def _get_human_action(legal_actions):
+def _get_human_action(legal_actions, state):
     ''' Get action from human input
 
     Args:
         legal_actions (list): A list of legal actions
+        state (dict): The current game state
 
     Returns:
         action (ScoutEvent): The action chosen by human
@@ -146,14 +178,14 @@ def _get_human_action(legal_actions):
         print('\n--- PLAY Actions (play cards from your hand) ---')
         for idx, action in play_actions:
             print(f'{idx}: ', end='')
-            _print_action(action)
+            _print_action(action, state)
     
     # Display scout actions
     if scout_actions:
         print('\n--- SCOUT Actions (take card from table) ---')
         for idx, action in scout_actions:
             print(f'{idx}: ', end='')
-            _print_action(action)
+            _print_action(action, state)
     
     print('\n=============================================')
     

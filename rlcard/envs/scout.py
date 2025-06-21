@@ -65,6 +65,14 @@ class ScoutEnv(Env):
     def get_payoffs(self):
          return np.array(self.game.get_payoffs())
 
+    def get_perfect_information(self):
+        ''' Get the perfect information of the current state
+
+        Returns:
+            (dict): A dictionary of all the perfect information of the current state
+        '''
+        return self.game.get_perfect_information()
+
     def _decode_action(self, action_id):
         # legal_ids = self._get_legal_actions()
         # if action_id in legal_ids:
