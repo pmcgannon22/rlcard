@@ -62,6 +62,66 @@ class ScoutEnv(Env):
 
         return extracted_state
 
+    def step(self, action, raw_action=False):
+        ''' Step forward with enhanced action recording
+
+        Args:
+            action (int): The action taken by the current player
+            raw_action (boolean): True if the action is a raw action
+
+        Returns:
+            (tuple): Tuple containing:
+
+                (dict): The next state
+                (int): The ID of the next player
+        '''
+        if not raw_action:
+            action = self._decode_action(action)
+
+        self.timestep += 1
+        
+        # Get current state before the action for context
+        current_state = self.game.get_state(self.get_player_id())
+        
+        # Record the action with enhanced context
+        action_context = self._get_action_context(action, current_state)
+        self.action_recorder.append((self.get_player_id(), action, action_context))
+        
+        next_state, player_id = self.game.step(action)
+
+        return self._extract_state(next_state), player_id
+
+    def _get_action_context(self, action, state):
+        ''' Get context information about an action for enhanced display
+
+        Args:
+            action (ScoutEvent): The action being taken
+            state (dict): The current game state
+
+        Returns:
+            (dict): Context information about the action
+        '''
+        context = {}
+        
+        if hasattr(action, 'start_idx') and hasattr(action, 'end_idx'):  # PlayAction
+            # Get the cards being played
+            cards = state['hand'][action.start_idx:action.end_idx]
+            context['cards'] = [f'{card.top}/{card.bottom}' for card in cards]
+            context['action_type'] = 'play'
+        elif hasattr(action, 'from_front') and hasattr(action, 'insertion_in_hand'):  # ScoutAction
+            # Get the card being scouted
+            if state['table_set']:
+                if action.from_front:
+                    scout_card = state['table_set'][0]
+                else:
+                    scout_card = state['table_set'][-1]
+                context['card'] = f'{scout_card.top}/{scout_card.bottom}'
+                context['direction'] = 'front' if action.from_front else 'back'
+                context['flipped'] = action.flip if hasattr(action, 'flip') else False
+            context['action_type'] = 'scout'
+        
+        return context
+
     def get_payoffs(self):
          return np.array(self.game.get_payoffs())
 

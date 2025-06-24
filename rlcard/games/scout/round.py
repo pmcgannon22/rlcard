@@ -8,6 +8,8 @@ from .card import ScoutCard as Card
 from .utils import segment_strength_rank, is_valid_scout_segment, find_all_scout_segments
 from .utils.action_event import ScoutEvent, ScoutAction, PlayAction
 
+DEBUG = False
+
 class ScoutRound:
     def __init__(self, dealer: ScoutDealer, num_players: int):
         self.dealer = dealer
@@ -60,6 +62,11 @@ class ScoutRound:
             # Execute the play
             new_set = player.play_cards(action.start_idx, action.end_idx)
 
+            # Award points for beating the current table set
+            if self.table_set:
+                # Player gets points equal to the number of cards they beat
+                player.score += len(self.table_set)
+
             ## TODO: Should be deque
             self.table_set = new_set
             self.table_owner = self.current_player_id
@@ -74,9 +81,15 @@ class ScoutRound:
         elif isinstance(action, ScoutAction):
             from_front = action.from_front
             insertion_position_in_hand = action.insertion_in_hand
+            flip = action.flip
 
             # Remove card from table set
             scout_card = self.table_set.pop(0) if from_front else self.table_set.pop()
+            
+            # Flip the card if requested
+            if flip:
+                scout_card = scout_card.flip()
+                
             player.insert_card(scout_card, insertion_position_in_hand)
 
             # The table owner gets +1 if the current player was forced to scout 
@@ -90,7 +103,8 @@ class ScoutRound:
 
             # If consecutive_scouts == num_players, round ends
             if self.consecutive_scouts == self.num_players - 1:
-                print( "All players have scouted consecutively, round ends.")
+                if DEBUG:
+                    print( "All players have scouted consecutively, round ends.")
                 self.game_over = True
 
         else:
@@ -104,7 +118,8 @@ class ScoutRound:
         self.current_player_id = next_player_id
 
         if not len(self.get_legal_actions()):
-            print("No legal actions left, round ends.")
+            if DEBUG:
+                print("No legal actions left, round ends.")
             self.game_over = True
 
         return next_player_id, self.game_over
@@ -167,7 +182,10 @@ class ScoutRound:
             'table_set': deepcopy(self.table_set),
             'table_owner': self.table_owner,
             'consecutive_scouts': self.consecutive_scouts,
-            'legal_actions': self.get_legal_actions()
+            'legal_actions': self.get_legal_actions(),
+            'num_players': self.num_players,
+            'current_player': self.current_player_id,
+            'num_cards': {i: len(self.players[i].hand) for i in range(self.num_players)}
         }
         return state
 
@@ -189,9 +207,12 @@ class ScoutRound:
         # For each card in table_set, for each insertion position in player's hand
         if len(self.players[self.current_player_id].hand) < 15 and len(self.table_set) > 0:
             for insert_pos in range(len(player.hand)):
-                all_actions.append(ScoutAction(True, insert_pos))
+                # Add normal scout actions
+                all_actions.append(ScoutAction(True, insert_pos, False))
+                all_actions.append(ScoutAction(True, insert_pos, True))
                 if len(self.table_set) > 1:
-                    all_actions.append(ScoutAction(False, insert_pos)) 
+                    all_actions.append(ScoutAction(False, insert_pos, False))
+                    all_actions.append(ScoutAction(False, insert_pos, True))
 
         return all_actions
 
@@ -199,11 +220,9 @@ class ScoutRound:
         """
         Scout rule: A set is stronger than the current table set if:
         1) It has more cards than the table set, OR
-        2) If it has the same number of cards, it has a higher 'strength rank'.
-            Typically the 'strength rank' is:
-                - For a run: the rank of the last (highest) card
-                - For a group: the (identical) rank of any of the cards
-                - For a single card: the card's own rank
+        2) If it has the same number of cards, it follows Scout hierarchy:
+           - Groups (matching cards) beat runs (consecutive cards) of same length
+           - Within same type, higher rank wins
         If current_set is empty, anything is automatically 'stronger' (i.e. you can freely play).
         """
         # If table is empty, any set is valid to beat it
@@ -219,9 +238,16 @@ class ScoutRound:
         elif new_len < old_len:
             return False
 
-        # 2) Same length => compare 'strength rank'
+        # 2) Same length => compare using Scout hierarchy
         new_strength = segment_strength_rank(chosen_cards)
         old_strength = segment_strength_rank(current_set)
 
-        return new_strength > old_strength
+        # Compare type priority first (groups > runs > singles)
+        if new_strength[0] > old_strength[0]:
+            return True
+        elif new_strength[0] < old_strength[0]:
+            return False
+        
+        # Same type, compare rank
+        return new_strength[1] > old_strength[1]
 

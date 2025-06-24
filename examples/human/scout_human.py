@@ -74,6 +74,15 @@ while True:
     
     print(f'Your payoff: {payoffs[0]}')
     print('')
+    
+    # Display scores for all players
+    print('=============== Final Scores ===============')
+    for i in range(env.num_players):
+        player_score = env.game.round.players[i].score
+        player_hand_size = len(env.game.round.players[i].hand)
+        player_type = "You" if i == 0 else f"AI Player {i}"
+        print(f'{player_type}: {player_score} points (hand size: {player_hand_size})')
+    print('')
 
     # Ask if user wants to continue
     try:

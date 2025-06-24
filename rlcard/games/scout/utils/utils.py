@@ -135,23 +135,45 @@ def compare_scout_segments(
 
 def segment_strength_rank(cards: list[Card]):
         """
-        Compute the 'strength rank' of a set. For runs, we assume the last card
-        is the highest rank (since it's ascending). For a group, all are the same,
-        so just return that rank. For a single card, return its rank.
+        Compute the 'strength rank' of a set according to Scout rules.
+        Scout hierarchy (from strongest to weakest):
+        1. Groups (matching cards) - highest rank wins
+        2. Runs (consecutive cards) - highest rank wins
+        3. Single cards - rank value
+        
+        Returns a tuple (type_priority, rank) where:
+        - type_priority: 2 for groups, 1 for runs, 0 for single cards
+        - rank: the highest rank in the set
         """
         length = len(cards)
 
         # Single card => its own rank
         if length == 1:
-            return cards[0].rank
+            return (0, cards[0].rank)
 
-        # Group => all same, so pick the first
+        # Check if it's a group (all same rank)
         if all(c.rank == cards[0].rank for c in cards):
-            return cards[0].rank
+            return (2, cards[0].rank)  # Group with priority 2
 
-        # Run => ranks ascending in the order they appear
-        # The last card has the highest rank
-        return max(cards[0].rank, cards[-1].rank)
+        # Check if it's a run (consecutive ranks)
+        is_ascending = True
+        is_descending = True
+        
+        for i in range(length - 1):
+            diff = cards[i+1].rank - cards[i].rank
+            if diff != 1:
+                is_ascending = False
+            if diff != -1:
+                is_descending = False
+            if not is_ascending and not is_descending:
+                break
+        
+        if is_ascending or is_descending:
+            # Run with priority 1, highest rank wins
+            return (1, max(cards[0].rank, cards[-1].rank))
+        
+        # Fallback: not a valid set, but return something
+        return (0, max(c.rank for c in cards))
 
 def get_action_list():
     MAX_HAND = 16
@@ -161,9 +183,11 @@ def get_action_list():
         for end_pos in range(start_pos+1, MAX_HAND+1):
             ACTION_LIST[f"play-{start_pos}-{end_pos}"] = len(ACTION_LIST)
 
-    # Then fill in scout actions
+    # Then fill in scout actions (both normal and flipped)
     for ins_idx in range(MAX_HAND+1):
-        ACTION_LIST[f"scout-front-{ins_idx}"] = len(ACTION_LIST)
-        ACTION_LIST[f"scout-back-{ins_idx}"] = len(ACTION_LIST)
+        ACTION_LIST[f"scout-front-{ins_idx}-normal"] = len(ACTION_LIST)
+        ACTION_LIST[f"scout-front-{ins_idx}-flip"] = len(ACTION_LIST)
+        ACTION_LIST[f"scout-back-{ins_idx}-normal"] = len(ACTION_LIST)
+        ACTION_LIST[f"scout-back-{ins_idx}-flip"] = len(ACTION_LIST)
 
     return ACTION_LIST

@@ -41,7 +41,7 @@ def train(args):
             agent = DQNAgent(
                 num_actions=env.num_actions,
                 state_shape=env.state_shape[0],
-                mlp_layers=[64,64],
+                mlp_layers=[128, 128, 64],
                 device=device,
                 save_path=args.log_dir,
                 save_every=args.save_every

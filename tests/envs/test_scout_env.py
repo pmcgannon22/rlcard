@@ -14,7 +14,7 @@ class TestUnoEnv(unittest.TestCase):
     def test_reset_and_extract_state(self):
         env = rlcard.make('scout')
         state, _ = env.reset()
-        self.assertEqual(state['obs'].size, 2 * 12 * 12)
+        self.assertEqual(state['obs'].size, 2 * 16 * 16)
 
     def test_is_deterministic(self):
         self.assertTrue(is_deterministic('scout'))
@@ -25,7 +25,7 @@ class TestUnoEnv(unittest.TestCase):
         env.reset()
         legal_actions = env._get_legal_actions()
         for legal_action in legal_actions:
-            self.assertLessEqual(legal_action, 170)
+            self.assertLessEqual(legal_action, 204)
 
     def test_step(self):
         env = rlcard.make('scout')

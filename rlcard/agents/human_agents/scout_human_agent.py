@@ -57,8 +57,8 @@ def _print_state(state, action_record):
         print('\n=============== Recent Actions ===============')
         for pair in _action_list:
             print('>> Player', pair[0], 'chooses ', end='')
-            _print_action(pair[1])
-            print('')
+            _print_recent_action(pair[1])
+        print('')
 
     # Print current game state
     print('\n=============== Your Hand ===============')
@@ -81,7 +81,54 @@ def _print_state(state, action_record):
     print('=============== Game Info ===============')
     print(f'Your score: {state.get("points", 0)}')
     print(f'Consecutive scouts: {state.get("consecutive_scouts", 0)}')
+    
+    # Show other players' hand sizes if available
+    if 'num_players' in state:
+        print('\n========== Other Players ==========')
+        for i in range(state['num_players']):
+            if i != state.get('current_player', 0):
+                hand_size = state.get('num_cards', {}).get(i, '?')
+                print(f'Player {i}: {hand_size} cards')
     print('')
+
+def _print_recent_action(action_info):
+    ''' Print out a recent action with enhanced information
+
+    Args:
+        action_info: Either a ScoutEvent action or a tuple of (player_id, action, context)
+    '''
+    # Handle both old format (just action) and new format (action with context)
+    if isinstance(action_info, tuple) and len(action_info) >= 3:
+        player_id, action, context = action_info
+        if context.get('action_type') == 'play':
+            cards_str = ', '.join([f'[{card}]' for card in context['cards']])
+            print(f'PLAY {cards_str}')
+        elif context.get('action_type') == 'scout':
+            card_str = f'[{context.get('card', 'Unknown')}]'
+            direction = context['direction']
+            flip_str = ' (flipped)' if context.get('flipped', False) else ''
+            print(f'SCOUT {card_str}{flip_str} from {direction} of table set')
+        else:
+            # Fallback to basic action display
+            if isinstance(action, PlayAction):
+                print(f'PLAY cards at positions {action.start_idx} to {action.end_idx-1}')
+            elif isinstance(action, ScoutAction):
+                direction = "front" if action.from_front else "back"
+                flip_str = ' (flipped)' if getattr(action, 'flip', False) else ''
+                print(f'SCOUT from {direction} of table set, insert at position {action.insertion_in_hand}{flip_str}')
+            else:
+                print(str(action))
+    else:
+        # Handle old format (just action object)
+        action = action_info
+        if isinstance(action, PlayAction):
+            print(f'PLAY cards at positions {action.start_idx} to {action.end_idx-1}')
+        elif isinstance(action, ScoutAction):
+            direction = "front" if action.from_front else "back"
+            flip_str = ' (flipped)' if getattr(action, 'flip', False) else ''
+            print(f'SCOUT from {direction} of table set, insert at position {action.insertion_in_hand}{flip_str}')
+        else:
+            print(str(action))
 
 def print_hand_graphical(hand):
     '''
@@ -125,6 +172,7 @@ def _print_action(action, state=None):
             print(f'PLAY cards at positions {action.start_idx} to {action.end_idx-1}')
     elif isinstance(action, ScoutAction):
         direction = "front" if action.from_front else "back"
+        flip_str = ' (flipped)' if getattr(action, 'flip', False) else ''
         if state and 'table_set' in state and state['table_set']:
             # Get the card being scouted
             if action.from_front:
@@ -132,7 +180,6 @@ def _print_action(action, state=None):
             else:
                 scout_card = state['table_set'][-1]
             card_desc = f'[{scout_card.top}/{scout_card.bottom}]'
-            
             # Describe insertion position
             if state and 'hand' in state:
                 hand = state['hand']
@@ -144,10 +191,9 @@ def _print_action(action, state=None):
                     pos_desc = f"between [{hand[action.insertion_in_hand-1].top}/{hand[action.insertion_in_hand-1].bottom}], [{hand[action.insertion_in_hand].top}/{hand[action.insertion_in_hand].bottom}]"
             else:
                 pos_desc = f"at position {action.insertion_in_hand}"
-            
-            print(f'SCOUT {card_desc} from {direction} of table set, insert {pos_desc}')
+            print(f'SCOUT {card_desc}{flip_str} from {direction} of table set, insert {pos_desc}')
         else:
-            print(f'SCOUT from {direction} of table set, insert at position {action.insertion_in_hand}')
+            print(f'SCOUT from {direction} of table set, insert at position {action.insertion_in_hand}{flip_str}')
     else:
         print(str(action))
 

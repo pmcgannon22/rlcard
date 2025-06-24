@@ -27,7 +27,7 @@ class ScoutPlayer:
 
     def play_cards(self, start_idx, end_idx):
         new_set: list[ScoutCard] = self.hand[start_idx:end_idx]
-        self.hand = self.hand[:start_idx] + self.hand[end_idx+1:]
+        self.hand = self.hand[:start_idx] + self.hand[end_idx:]
         
         return new_set
     

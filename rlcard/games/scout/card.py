@@ -13,6 +13,14 @@ class ScoutCard:
         self.rank = top
         self.str = self.get_str()
 
+    def flip(self):
+        ''' Flip the card, swapping top and bottom values
+        
+        Returns:
+            (ScoutCard): A new card with top and bottom swapped
+        '''
+        return ScoutCard(self.bottom, self.top)
+
     def get_str(self):
         ''' Get the string representation of card
 

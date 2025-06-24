@@ -6,6 +6,7 @@ from rlcard.games.scout import Dealer
 from rlcard.games.scout import Player
 from rlcard.games.scout import Round
 from rlcard.games.scout.utils.action_event import ScoutEvent
+from rlcard.games.scout.utils import get_action_list
 
 class ScoutGame:
     def __init__(self, num_players=4, allow_step_back=False):
@@ -76,7 +77,7 @@ class ScoutGame:
         return self.num_players
     
     def get_num_actions(self):
-        return 170
+        return len(get_action_list())
 
     def get_player_id(self):
         ''' Return the current player that will take actions soon
