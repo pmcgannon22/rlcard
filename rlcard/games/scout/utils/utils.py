@@ -175,16 +175,15 @@ def segment_strength_rank(cards: list[Card]):
         # Fallback: not a valid set, but return something
         return (0, max(c.rank for c in cards))
 
-def get_action_list():
-    MAX_HAND = 16
+def get_action_list(max_hand_size=16):
     ACTION_LIST = {}
     # Fill ACTION_LIST with every possible (start_pos, end_pos) for playing
-    for start_pos in range(MAX_HAND):
-        for end_pos in range(start_pos+1, MAX_HAND+1):
+    for start_pos in range(max_hand_size):
+        for end_pos in range(start_pos+1, max_hand_size+1):
             ACTION_LIST[f"play-{start_pos}-{end_pos}"] = len(ACTION_LIST)
 
     # Then fill in scout actions (both normal and flipped)
-    for ins_idx in range(MAX_HAND+1):
+    for ins_idx in range(max_hand_size+1):
         ACTION_LIST[f"scout-front-{ins_idx}-normal"] = len(ACTION_LIST)
         ACTION_LIST[f"scout-front-{ins_idx}-flip"] = len(ACTION_LIST)
         ACTION_LIST[f"scout-back-{ins_idx}-normal"] = len(ACTION_LIST)

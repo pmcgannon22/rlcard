@@ -6,7 +6,7 @@ from rlcard.agents.random_agent import RandomAgent
 from rlcard.games.scout.utils import get_action_list, ScoutEvent
 from .determism_util import is_deterministic
 
-ACTION_LIST = get_action_list()
+ACTION_LIST = get_action_list(max_hand_size=16)
 ACTION_FROM_ID = {v: k for k, v in ACTION_LIST.items()}
 
 class TestUnoEnv(unittest.TestCase):

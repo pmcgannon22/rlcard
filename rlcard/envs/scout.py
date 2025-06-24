@@ -7,7 +7,7 @@ from rlcard.games.scout import Game
 from rlcard.games.scout.utils import get_action_list
 from rlcard.games.scout.utils.action_event import ScoutEvent
 
-ACTION_SPACE = get_action_list()
+ACTION_SPACE = get_action_list(max_hand_size=16)
 ACTION_LIST = list(ACTION_SPACE.keys())
 
 DEFAULT_GAME_CONFIG = {
@@ -134,9 +134,10 @@ class ScoutEnv(Env):
         return self.game.get_perfect_information()
 
     def _decode_action(self, action_id):
-        # legal_ids = self._get_legal_actions()
-        # if action_id in legal_ids:
-        return ScoutEvent.from_action_id(action_id)
+        # Generate the action list for the current player's hand size
+        player = self.game.round.players[self.game.round.current_player_id]
+        action_list = get_action_list(len(player.hand))
+        return ScoutEvent.from_action_id(action_id, action_list)
     
     def _get_legal_actions(self):
         legal_actions = self.game.get_legal_actions()

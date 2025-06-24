@@ -5,7 +5,7 @@ from .player import ScoutPlayer
 from .judger import ScoutJudger 
 from .dealer import ScoutDealer 
 from .card import ScoutCard as Card
-from .utils import segment_strength_rank, is_valid_scout_segment, find_all_scout_segments
+from .utils import segment_strength_rank, is_valid_scout_segment, find_all_scout_segments, get_action_list
 from .utils.action_event import ScoutEvent, ScoutAction, PlayAction
 
 DEBUG = False
@@ -197,22 +197,25 @@ class ScoutRound:
         player = self.players[self.current_player_id]
         all_actions: List[ScoutEvent] = []
 
+        # Generate the action list for the current hand size
+        action_list = get_action_list(len(player.hand))
+
         # 1) Generate all valid sets the player could play
         possible_sets = find_all_scout_segments(player.hand)
         for s in possible_sets:
             if not self.table_set or self._is_stronger_set(s['cards'], self.table_set):
-                all_actions.append(PlayAction(s['start'], s['end']))
+                all_actions.append(PlayAction(s['start'], s['end'], action_list))
 
         # 2) Scout actions
         # For each card in table_set, for each insertion position in player's hand
         if len(self.players[self.current_player_id].hand) < 15 and len(self.table_set) > 0:
-            for insert_pos in range(len(player.hand)):
+            for insert_pos in range(len(player.hand) + 1):  # +1 to include inserting at the end
                 # Add normal scout actions
-                all_actions.append(ScoutAction(True, insert_pos, False))
-                all_actions.append(ScoutAction(True, insert_pos, True))
+                all_actions.append(ScoutAction(True, insert_pos, False, action_list))
+                all_actions.append(ScoutAction(True, insert_pos, True, action_list))
                 if len(self.table_set) > 1:
-                    all_actions.append(ScoutAction(False, insert_pos, False))
-                    all_actions.append(ScoutAction(False, insert_pos, True))
+                    all_actions.append(ScoutAction(False, insert_pos, False, action_list))
+                    all_actions.append(ScoutAction(False, insert_pos, True, action_list))
 
         return all_actions
 

@@ -1,6 +1,7 @@
 from copy import deepcopy
 import numpy as np
 from typing import List
+from math import ceil
 
 from rlcard.games.scout import Dealer
 from rlcard.games.scout import Player
@@ -77,7 +78,14 @@ class ScoutGame:
         return self.num_players
     
     def get_num_actions(self):
-        return len(get_action_list())
+        # If round is initialized, use actual hand sizes
+        if hasattr(self, 'round') and hasattr(self.round, 'players'):
+            max_hand_size = max(len(player.hand) for player in self.round.players)
+        else:
+            # Estimate max hand size before game is initialized
+            # There are 45 cards in the deck, divided among num_players
+            max_hand_size = ceil(45 / self.num_players)
+        return len(get_action_list(max_hand_size))
 
     def get_player_id(self):
         ''' Return the current player that will take actions soon

@@ -113,6 +113,6 @@ def run_tests():
 
 if __name__ == "__main__":
     # run_tests()
-    actions = get_action_list()
+    actions = get_action_list(max_hand_size=16)
     for action in actions:
         print(action)
