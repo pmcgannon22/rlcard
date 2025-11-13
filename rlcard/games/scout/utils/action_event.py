@@ -1,11 +1,14 @@
-from .utils import get_action_list
+from __future__ import annotations
+
+from .utils import ActionList
+
 
 class ScoutEvent:
-    def __init__(self, action_id, action_list):
-        self.action_id = action_id
-        self.action_list = action_list
+    def __init__(self, action_id: int, action_list: ActionList) -> None:
+        self.action_id: int = action_id
+        self.action_list: ActionList = action_list
 
-    def get_action_repr(self):
+    def get_action_repr(self) -> str:
         # Reverse lookup
         for k, v in self.action_list.items():
             if v == self.action_id:
@@ -13,7 +16,7 @@ class ScoutEvent:
         return str(self.action_id)
         
     @staticmethod
-    def from_action_id(action_id, action_list):
+    def from_action_id(action_id: int, action_list: ActionList) -> ScoutEvent:
         # Use the provided action_list for reverse lookup
         for k, v in action_list.items():
             if v == action_id:
@@ -29,14 +32,20 @@ class ScoutEvent:
         else:
             raise Exception(f"Do not recognize {action_id=}")
         
-    def __str__(self):
+    def __str__(self) -> str:
         return self.get_action_repr()
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.get_action_repr()
 
 class ScoutAction(ScoutEvent):
-    def __init__(self, from_front: bool, insertion_in_hand: int, flip: bool = False, action_list=None):
+    def __init__(
+        self,
+        from_front: bool,
+        insertion_in_hand: int,
+        flip: bool = False,
+        action_list: ActionList | None = None,
+    ) -> None:
         self.from_front = from_front
         self.insertion_in_hand = insertion_in_hand
         self.flip = flip
@@ -51,11 +60,11 @@ class ScoutAction(ScoutEvent):
     def __str__(self) -> str:
         return self.get_action_repr()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.get_action_repr()
 
 class PlayAction(ScoutEvent):
-    def __init__(self, start_idx: int, end_idx: int, action_list=None):
+    def __init__(self, start_idx: int, end_idx: int, action_list: ActionList | None = None) -> None:
         self.start_idx = start_idx
         self.end_idx = end_idx
         if action_list is None:
@@ -65,8 +74,8 @@ class PlayAction(ScoutEvent):
     def get_action_repr(self) -> str:
         return f"play-{self.start_idx}-{self.end_idx}"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.get_action_repr()
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.get_action_repr()

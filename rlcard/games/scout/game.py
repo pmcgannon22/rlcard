@@ -1,19 +1,24 @@
+from __future__ import annotations
+
 from copy import deepcopy
+from typing import Any
+
 import numpy as np
-from typing import List
-from math import ceil
 
 from rlcard.games.scout import Dealer
-from rlcard.games.scout import Player
 from rlcard.games.scout import Round
 from rlcard.games.scout.utils.action_event import ScoutEvent
 from rlcard.games.scout.utils import get_action_list
 
+
 class ScoutGame:
-    def __init__(self, num_players=4, allow_step_back=False):
-        self.allow_step_back = allow_step_back
+    def __init__(self, num_players: int = 4, allow_step_back: bool = False) -> None:
+        self.allow_step_back: bool = allow_step_back
         self.np_random = np.random.RandomState()
-        self.num_players = num_players
+        self.num_players: int = num_players
+        self.dealer: Dealer | None = None
+        self.round: Round | None = None
+        self.history: list[tuple[Dealer, Round]] = []
         # self.payoffs = [0 for _ in range(self.num_players)]
     
     # def configure(self, game_config):
@@ -21,7 +26,7 @@ class ScoutGame:
     #     '''
     #     self.num_players = game_config['game_num_players']
 
-    def init_game(self):
+    def init_game(self) -> tuple[dict[str, Any], int]:
         ''' Initialize players and state
 
         Returns:
@@ -46,7 +51,7 @@ class ScoutGame:
         state = self.round.get_state(player_id)
         return state, player_id
     
-    def step(self, action):
+    def step(self, action: ScoutEvent) -> tuple[dict[str, Any], int]:
         ''' Get the next state
 
         Args:
@@ -59,6 +64,9 @@ class ScoutGame:
                 (int): next player's id
         '''
 
+        if self.round is None or self.dealer is None:
+            raise RuntimeError("Game has not been initialized. Call init_game() first.")
+
         if self.allow_step_back:
             # First snapshot the current state
             his_dealer = deepcopy(self.dealer)
@@ -69,52 +77,58 @@ class ScoutGame:
         state = self.round.get_state(player_id)
         return state, player_id
     
-    def get_payoffs(self):
-        return self.round.get_payoffs()
+    def get_payoffs(self) -> list[int]:
+        return self._require_round().get_payoffs()
 
-    def get_num_players(self):
+    def get_num_players(self) -> int:
         ''' Return the number of players in the game
         '''
         return self.num_players
     
-    def get_num_actions(self):
+    def get_num_actions(self) -> int:
         # If round is initialized, use actual hand sizes
-        if hasattr(self, 'round') and hasattr(self.round, 'players'):
-            max_hand_size = max(len(player.hand) for player in self.round.players)
-        else:
-            # Estimate max hand size before game is initialized
-            # There are 45 cards in the deck, divided among num_players
-            max_hand_size = ceil(45 / self.num_players)
-        return len(get_action_list(max_hand_size))
+        # if hasattr(self, 'round') and hasattr(self.round, 'players'):
+        #     max_hand_size = max(len(player.hand) for player in self.round.players)
+        # else:
+        #     # Estimate max hand size before game is initialized
+        #     # There are 45 cards in the deck, divided among num_players
+        #     max_hand_size = ceil(45 / self.num_players)
+        return len(get_action_list())
 
-    def get_player_id(self):
+    def get_player_id(self) -> int:
         ''' Return the current player that will take actions soon
         '''
-        return self.round.current_player_id
+        return self._require_round().current_player_id
     
-    def is_over(self):
+    def is_over(self) -> bool:
         ''' Return whether the current game is over
         '''
-        return self.round.game_over
+        return self._require_round().game_over
     
-    def get_legal_actions(self) -> List[ScoutEvent]:
-        return self.round.get_legal_actions()
+    def get_legal_actions(self) -> list[ScoutEvent]:
+        return self._require_round().get_legal_actions()
     
-    def get_state(self, player_id):
-        return self.round.get_state(player_id)
+    def get_state(self, player_id: int) -> dict[str, Any]:
+        return self._require_round().get_state(player_id)
     
-    def get_perfect_information(self):
+    def get_perfect_information(self) -> dict[str, Any]:
         ''' Get the perfect information of the current state
 
         Returns:
             (dict): A dictionary of all the perfect information of the current state
         '''
-        state = {}
+        round_obj = self._require_round()
+        state: dict[str, Any] = {}
         state['num_players'] = self.num_players
-        state['hand_cards'] = [player.hand for player in self.round.players]
-        state['table_set'] = self.round.table_set
-        state['table_owner'] = self.round.table_owner
-        state['current_player'] = self.round.current_player_id
-        state['legal_actions'] = self.round.get_legal_actions()
-        state['consecutive_scouts'] = self.round.consecutive_scouts
+        state['hand_cards'] = [player.hand for player in round_obj.players]
+        state['table_set'] = round_obj.table_set
+        state['table_owner'] = round_obj.table_owner
+        state['current_player'] = round_obj.current_player_id
+        state['legal_actions'] = round_obj.get_legal_actions()
+        state['consecutive_scouts'] = round_obj.consecutive_scouts
         return state
+
+    def _require_round(self) -> Round:
+        if self.round is None:
+            raise RuntimeError("Round has not been initialized. Call init_game() first.")
+        return self.round

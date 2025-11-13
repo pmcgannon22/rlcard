@@ -1,19 +1,20 @@
+from __future__ import annotations
+
 import random
-from collections import deque, namedtuple
-from typing import Self, Tuple, List
+from typing import NamedTuple, Self
 
 class Card:
-    def __init__(self, top, bottom):
-        self.top = top
-        self.bottom = bottom
+    def __init__(self, top: int, bottom: int) -> None:
+        self.top: int = top
+        self.bottom: int = bottom
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"({self.top}/{self.bottom})"
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)
     
-    def __sub__(self, other: Self):
+    def __sub__(self, other: Self) -> int:
         return self.top - other.top
     
     def __eq__(self, other: Self) -> bool:
@@ -26,22 +27,22 @@ class Card:
         return abs(other.top - self.top) == 1
 
 class Deck:
-    cards: List[Card]
+    cards: list[Card]
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.cards = [Card(top, bottom) for top in range(1, 11) for bottom in range(top + 1, 11)]
         random.shuffle(self.cards)
 
     def draw(self) -> Card:
         return self.cards.pop()
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{len(self.cards)} cards: {','.join([str(card) for card in self.cards])}"
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)
 
-def value_set(cards: List[Card]):
+def value_set(cards: list[Card]) -> int:
     if not cards:
         return 0
     
@@ -52,13 +53,17 @@ def value_set(cards: List[Card]):
 
     return score
 
-BestSet = namedtuple('BestSet', ['start', 'finish', 'value', 'cards'])
+class BestSet(NamedTuple):
+    start: int
+    finish: int
+    value: int
+    cards: list[Card]
 
-def find_best_set(hand: List[Card]) -> BestSet:
+def find_best_set(hand: list[Card]) -> BestSet:
     # (start, finish, value)
     best_set = BestSet(start=0, finish=0, value=0, cards=[])
-    sets = []
-    cur_set: List[Card] = []
+    sets: list[list[Card]] = []
+    cur_set: list[Card] = []
     offset = 0
     
     for i, card in enumerate(hand):
@@ -98,7 +103,7 @@ def find_best_set(hand: List[Card]) -> BestSet:
 
     return best_set
 
-def best_insert(scouted: Card, hand: List[Card]) -> Tuple[int, Card, List[Card]]:
+def best_insert(scouted: Card, hand: list[Card]) -> tuple[int, Card, list[Card]]:
     value, place, card = 0, 0, scouted
     for i in range(len(hand)):
         best_set_top = find_best_set(hand[:i] + [scouted] + hand[i:])
@@ -112,7 +117,7 @@ def best_insert(scouted: Card, hand: List[Card]) -> Tuple[int, Card, List[Card]]
 
 class Player:
     name: str
-    hand: List[Card]
+    hand: list[Card]
     score: int
 
     def __init__(self, name: str):
@@ -120,7 +125,7 @@ class Player:
         self.hand = []
         self.score = 0
 
-    def draw_hand(self, deck: Deck):
+    def draw_hand(self, deck: Deck) -> None:
         self.hand = [deck.draw() for _ in range(12)]
 
     def get_best_set(self) -> BestSet:
@@ -128,10 +133,10 @@ class Player:
 
         return best_set
 
-    def play_set(self, played_set: BestSet):
+    def play_set(self, played_set: BestSet) -> None:
         self.hand = self.hand[:played_set.start] + self.hand[played_set.finish:]
 
-    def scout_card(self, active_set: List[Card]) -> Card:
+    def scout_card(self, active_set: list[Card]) -> Card:
         if len(active_set) == 1:
             (_, card, self.hand) = best_insert(active_set[0], self.hand)
         else:
@@ -144,30 +149,30 @@ class Player:
         
         return card
     
-    def give_points(self, n: int):
+    def give_points(self, n: int) -> None:
         self.score += n
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.name} hand: {' '.join(map(str, self.hand))}"
 
 class ScoutGame:
-    def __init__(self):
+    def __init__(self) -> None:
         self.deck = Deck()
-        self.players = [Player("Patrick"), Player("Miriam")]
-        self.current_set = []
-        self.current_set_val = 0
-        self.round_ended = False
+        self.players: list[Player] = [Player("Patrick"), Player("Miriam")]
+        self.current_set: list[Card] = []
+        self.current_set_val: int = 0
+        self.round_ended: bool = False
 
-    def start_game(self):
+    def start_game(self) -> None:
         for player in self.players:
             player.draw_hand(self.deck)
-        self.current_player_index = 0
+        self.current_player_index: int = 0
         self.play_game()
 
-    def switch_player(self):
+    def switch_player(self) -> None:
         self.current_player_index = (self.current_player_index + 1) % len(self.players)
 
-    def play_game(self):
+    def play_game(self) -> None:
         while not self.round_ended:
             current_player = self.players[self.current_player_index]
             print(current_player)
@@ -198,7 +203,7 @@ class ScoutGame:
 
         self.calculate_scores()
 
-    def calculate_scores(self):
+    def calculate_scores(self) -> None:
         for player in self.players:
             print(f"{player.name}'s score: {player.score}")
 
@@ -246,7 +251,7 @@ class ScoutGame:
 
 #     return sets_above_value
 
-def find_sets_above_value(hand: List[Card], min_val=0) -> BestSet:
+def find_sets_above_value(hand: list[Card], min_val: int = 0) -> list[list[Card]]:
     # (start, finish, value)
     best_set = BestSet(start=0, finish=0, value=0, cards=[])
     sets = []

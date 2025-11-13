@@ -1,19 +1,22 @@
+from __future__ import annotations
+
 from typing import Self
 
+
 class ScoutCard:
-    def __init__(self, top, bottom):
+    def __init__(self, top: int, bottom: int) -> None:
         ''' Initialize the class of ScoutCard
 
         Args:
             top (int): The top number
             bottom (int): The bottom number
         '''
-        self.top = top
-        self.bottom = bottom
-        self.rank = top
-        self.str = self.get_str()
+        self.top: int = top
+        self.bottom: int = bottom
+        self.rank: int = top
+        self.str: str = self.get_str()
 
-    def flip(self):
+    def flip(self) -> Self:
         ''' Flip the card, swapping top and bottom values
         
         Returns:
@@ -21,7 +24,7 @@ class ScoutCard:
         '''
         return ScoutCard(self.bottom, self.top)
 
-    def get_str(self):
+    def get_str(self) -> str:
         ''' Get the string representation of card
 
         Return:
@@ -30,7 +33,7 @@ class ScoutCard:
         return f"{self.top}/{self.bottom}"
 
     @staticmethod
-    def print_cards(cards: list[Self]):
+    def print_cards(cards: ScoutCard | list[ScoutCard]) -> None:
         ''' Print out card(s) in a nice form
 
         Args:
@@ -49,8 +52,8 @@ class ScoutCard:
                 
         print(', '.join(output))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.get_str()
     
-    def __str__(self):
+    def __str__(self) -> str:
         return self.get_str()

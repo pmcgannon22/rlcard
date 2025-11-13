@@ -1,17 +1,21 @@
-from rlcard.games.scout.utils import init_deck
+from __future__ import annotations
 
+from numpy.random import RandomState
+
+from rlcard.games.scout.utils import init_deck
 from rlcard.games.scout.card import ScoutCard
+
 
 class ScoutDealer:
     ''' Initialize a scout dealer class
     '''
-    def __init__(self, np_random):
-        self.np_random = np_random
-        self.deck = init_deck()
+    def __init__(self, np_random: RandomState) -> None:
+        self.np_random: RandomState = np_random
+        self.deck: list[ScoutCard] = init_deck()
         self.shuffle()
-        self.table = []
+        self.table: list[ScoutCard] = []
 
-    def shuffle(self):
+    def shuffle(self) -> None:
         ''' Shuffle the deck
         '''
         self.np_random.shuffle(self.deck)

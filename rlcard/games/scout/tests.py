@@ -1,11 +1,11 @@
-# tests.py
+from __future__ import annotations
 
 # Adjust these import lines to match your project's file names and structure:
 # For example, if your utilities are in 'utils.py' and the card class is in 'scout.py'
-from .utils import find_all_scout_segments, compare_scout_segments, get_action_list
+from .utils import ActionList, find_all_scout_segments, compare_scout_segments, get_action_list
 from .card import ScoutCard  # or wherever ScoutCard is defined
 
-def test_find_all_segments(label, hand):
+def test_find_all_segments(label: str, hand: list[ScoutCard]) -> None:
     """Helper to print out all valid segments found in a hand."""
     print(f"\n=== {label} ===")
     print("Hand (in order):", [c.get_str() for c in hand])
@@ -17,7 +17,14 @@ def test_find_all_segments(label, hand):
         print(f"  Segment {start_idx}:{end_idx} => {segment_strs}")
 
 
-def test_compare_segments(label, hand, new_start, new_end, old_start, old_end):
+def test_compare_segments(
+    label: str,
+    hand: list[ScoutCard],
+    new_start: int,
+    new_end: int,
+    old_start: int,
+    old_end: int,
+) -> None:
     """Helper to compare two segments (new vs old) from the same hand."""
     print(f"\n=== {label} ===")
     new_segment_cards = hand[new_start:new_end]
@@ -34,13 +41,13 @@ def test_compare_segments(label, hand, new_start, new_end, old_start, old_end):
     print("Result: Is new segment stronger than old segment? =>", is_stronger)
 
 
-def run_tests():
+def run_tests() -> None:
     """
     Run a series of test scenarios on find_all_scout_segments and compare_scout_segments.
     """
 
     # 1) Basic run & group test
-    hand1 = [
+    hand1: list[ScoutCard] = [
         ScoutCard(3, 1),   # rank=3
         ScoutCard(4, 5),   # rank=4
         ScoutCard(5, 9),   # rank=5
@@ -54,7 +61,7 @@ def run_tests():
     test_compare_segments("Test 1 Compare Run vs Group", hand1, 0, 3, 2, 4)
 
     # 2) Hand with multiple groups
-    hand2 = [
+    hand2: list[ScoutCard] = [
         ScoutCard(7, 3),
         ScoutCard(7, 7),
         ScoutCard(7, 4),
@@ -71,7 +78,7 @@ def run_tests():
     test_compare_segments("Test 2 Compare Group vs Run", hand2, 0, 3, 2, 5)
 
     # 3) Single-card tests (if single cards are allowed in your variant)
-    hand3 = [
+    hand3: list[ScoutCard] = [
         ScoutCard(10, 2),
         ScoutCard(11, 11),
         ScoutCard(12, 6)
@@ -81,12 +88,12 @@ def run_tests():
     test_compare_segments("Test 3 Compare Single Cards", hand3, 0, 1, 1, 2)
 
     # 4) Edge case: empty hand (no segments)
-    hand4 = []
+    hand4: list[ScoutCard] = []
     test_find_all_segments("Test 4: Empty Hand", hand4)
     # There's nothing to compare, so skip compare test
 
     # 5) Large hand with consecutive run
-    hand5 = [
+    hand5: list[ScoutCard] = [
         ScoutCard(1, 13),
         ScoutCard(2, 12),
         ScoutCard(3, 10),
@@ -101,7 +108,7 @@ def run_tests():
     test_compare_segments("Test 5 Compare Long vs Short Run", hand5, 0, 5, 2, 5)
 
     # 6) Basic run & group test
-    hand6 = [
+    hand6: list[ScoutCard] = [
         ScoutCard(3, 1),   # rank=3
         ScoutCard(4, 5),   # rank=4
         ScoutCard(5, 9),   # rank=5
@@ -113,6 +120,6 @@ def run_tests():
 
 if __name__ == "__main__":
     # run_tests()
-    actions = get_action_list(max_hand_size=16)
+    actions: ActionList = get_action_list(max_hand_size=16)
     for action in actions:
         print(action)

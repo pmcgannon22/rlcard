@@ -1,24 +1,32 @@
-import numpy as np
+from __future__ import annotations
+
 from copy import deepcopy
-from typing import List
+from typing import Any
+
 from .player import ScoutPlayer
 from .judger import ScoutJudger 
 from .dealer import ScoutDealer 
 from .card import ScoutCard as Card
-from .utils import segment_strength_rank, is_valid_scout_segment, find_all_scout_segments, get_action_list
+from .utils import (
+    CardSegment,
+    find_all_scout_segments,
+    get_action_list,
+    is_valid_scout_segment,
+    segment_strength_rank,
+)
 from .utils.action_event import ScoutEvent, ScoutAction, PlayAction
 
 DEBUG = False
 
 class ScoutRound:
-    def __init__(self, dealer: ScoutDealer, num_players: int):
+    def __init__(self, dealer: ScoutDealer, num_players: int) -> None:
         self.dealer = dealer
         self.num_players = num_players
-        self.players = [ScoutPlayer(player_id=i) for i in range(num_players)]
+        self.players: list[ScoutPlayer] = [ScoutPlayer(player_id=i) for i in range(num_players)]
         self.table_set: list[Card] = []
-        self.table_owner: int = None
-        self.consecutive_scouts = 0
-        self.game_over = False
+        self.table_owner: int | None = None
+        self.consecutive_scouts: int = 0
+        self.game_over: bool = False
 
         # TODO: Cleaner
         n_cards = 45
@@ -30,10 +38,10 @@ class ScoutRound:
             self.players[i].hand = initial_cards
 
         # Choose first player
-        self.current_player_id = 0  # or random if you prefer
+        self.current_player_id: int = 0  # or random if you prefer
         # self.payoff = 
 
-    def proceed_round(self, action: ScoutEvent):
+    def proceed_round(self, action: ScoutEvent) -> tuple[int, bool]:
         """
         Process a player's action: either 'play' or 'scout'.
         Action structure might be something like:
@@ -84,6 +92,8 @@ class ScoutRound:
             flip = action.flip
 
             # Remove card from table set
+            if not self.table_set:
+                raise RuntimeError("Cannot scout from an empty table set.")
             scout_card = self.table_set.pop(0) if from_front else self.table_set.pop()
             
             # Flip the card if requested
@@ -95,6 +105,8 @@ class ScoutRound:
             # The table owner gets +1 if the current player was forced to scout 
             # (i.e. they had no valid play). 
             # For RL simplicity, you might handle it here or in Judger.
+            if self.table_owner is None:
+                raise RuntimeError("Table owner must be defined when scouting.")
             self.players[self.table_owner].score += 1
 
             self.consecutive_scouts += 1
@@ -124,7 +136,7 @@ class ScoutRound:
 
         return next_player_id, self.game_over
 
-    def _validate_play(self, player: ScoutPlayer, start_idx: int, end_idx: int):
+    def _validate_play(self, player: ScoutPlayer, start_idx: int, end_idx: int) -> bool:
         """
         Check if the chosen set is valid:
          1) Cards must be consecutive in player's hand 
@@ -149,7 +161,7 @@ class ScoutRound:
 
         return True
 
-    def get_payoffs(self):
+    def get_payoffs(self) -> list[int]:
         """
         Called when round ends. 
         Typically, you handle:
@@ -163,7 +175,7 @@ class ScoutRound:
         return ScoutJudger.compute_rewards(self.players)
         # return ScoutJudger.judge_game(self.players, self.table_owner)
 
-    def get_state(self, player_id: int):
+    def get_state(self, player_id: int) -> dict[str, Any]:
         """
         RLCard typically requires a method to get the state
         from the perspective of a given player_id
@@ -176,7 +188,7 @@ class ScoutRound:
         #  - the table set (maybe only the front values are known if you hide back values)
         #  - any public scoring info
         # etc.
-        state = {
+        state: dict[str, Any] = {
             'hand': deepcopy(player.hand),
             'points': player.score,
             'table_set': deepcopy(self.table_set),
@@ -189,22 +201,22 @@ class ScoutRound:
         }
         return state
 
-    def get_legal_actions(self) -> List[ScoutEvent]:
+    def get_legal_actions(self) -> list[ScoutEvent]:
         """
         Return a list of all possible actions from the perspective
         of the current player, i.e. all sets that can be played + all scout actions.
         """
         player = self.players[self.current_player_id]
-        all_actions: List[ScoutEvent] = []
+        all_actions: list[ScoutEvent] = []
 
         # Generate the action list for the current hand size
         action_list = get_action_list(len(player.hand))
 
         # 1) Generate all valid sets the player could play
-        possible_sets = find_all_scout_segments(player.hand)
-        for s in possible_sets:
-            if not self.table_set or self._is_stronger_set(s['cards'], self.table_set):
-                all_actions.append(PlayAction(s['start'], s['end'], action_list))
+        possible_sets: list[CardSegment] = find_all_scout_segments(player.hand)
+        for segment in possible_sets:
+            if not self.table_set or self._is_stronger_set(segment['cards'], self.table_set):
+                all_actions.append(PlayAction(segment['start'], segment['end'], action_list))
 
         # 2) Scout actions
         # For each card in table_set, for each insertion position in player's hand
@@ -219,7 +231,7 @@ class ScoutRound:
 
         return all_actions
 
-    def _is_stronger_set(self, chosen_cards: list[Card], current_set: list[Card]):
+    def _is_stronger_set(self, chosen_cards: list[Card], current_set: list[Card]) -> bool:
         """
         Scout rule: A set is stronger than the current table set if:
         1) It has more cards than the table set, OR
@@ -253,4 +265,3 @@ class ScoutRound:
         
         # Same type, compare rank
         return new_strength[1] > old_strength[1]
-
