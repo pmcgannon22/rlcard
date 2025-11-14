@@ -19,27 +19,25 @@ from .utils.action_event import ScoutEvent, ScoutAction, PlayAction
 DEBUG = False
 
 class ScoutRound:
-    def __init__(self, dealer: ScoutDealer, num_players: int) -> None:
+    def __init__(self, dealer: ScoutDealer, num_players: int, force_play_if_possible: bool = True) -> None:
         self.dealer = dealer
         self.num_players = num_players
+        self.force_play_if_possible = force_play_if_possible
         self.players: list[ScoutPlayer] = [ScoutPlayer(player_id=i) for i in range(num_players)]
         self.table_set: list[Card] = []
         self.table_owner: int | None = None
         self.consecutive_scouts: int = 0
         self.game_over: bool = False
-
-        # TODO: Cleaner
-        n_cards = 45
-
-        # Deal cards to each player
+        # Deal cards in a round-robin fashion so ordering stays meaningful
         self.dealer.shuffle()
-        for i in range(num_players):
-            initial_cards = self.dealer.deal_cards(n_cards // self.num_players)  # Implementation depends on your dealer
-            self.players[i].hand = initial_cards
+        player_idx = 0
+        while self.dealer.deck:
+            card = self.dealer.deal_cards(1)[0]
+            self.players[player_idx].hand.append(card)
+            player_idx = (player_idx + 1) % num_players
 
         # Choose first player
-        self.current_player_id: int = 0  # or random if you prefer
-        # self.payoff = 
+        self.current_player_id: int = self.dealer.np_random.randint(self.num_players)
 
     def proceed_round(self, action: ScoutEvent) -> tuple[int, bool]:
         """
@@ -105,18 +103,19 @@ class ScoutRound:
             # The table owner gets +1 if the current player was forced to scout 
             # (i.e. they had no valid play). 
             # For RL simplicity, you might handle it here or in Judger.
-            if self.table_owner is None:
-                raise RuntimeError("Table owner must be defined when scouting.")
-            self.players[self.table_owner].score += 1
+            if self.table_owner is not None:
+                self.players[self.table_owner].score += 1
 
             self.consecutive_scouts += 1
-            # If table_set is empty, might consider clearing table_owner 
-            # or allow next player to effectively see an empty table set (which is easy to beat).
+            if not self.table_set:
+                # Empty table => next player can freely play anything
+                self.table_owner = None
+                self.consecutive_scouts = 0
 
-            # If consecutive_scouts == num_players, round ends
-            if self.consecutive_scouts == self.num_players - 1:
+            if self.consecutive_scouts == self.num_players - 1 and self.table_owner is not None:
                 if DEBUG:
-                    print( "All players have scouted consecutively, round ends.")
+                    print("All players have scouted consecutively, round ends.")
+                self.players[self.table_owner].score += len(self.table_set)
                 self.game_over = True
 
         else:
@@ -214,18 +213,26 @@ class ScoutRound:
 
         # 1) Generate all valid sets the player could play
         possible_sets: list[CardSegment] = find_all_scout_segments(player.hand)
+        playable_segments: list[CardSegment] = []
         for segment in possible_sets:
             if not self.table_set or self._is_stronger_set(segment['cards'], self.table_set):
-                all_actions.append(PlayAction(segment['start'], segment['end'], action_list))
+                playable_segments.append(segment)
+
+        for segment in playable_segments:
+            all_actions.append(PlayAction(segment['start'], segment['end'], action_list))
 
         # 2) Scout actions
         # For each card in table_set, for each insertion position in player's hand
-        if len(self.players[self.current_player_id].hand) < 15 and len(self.table_set) > 0:
-            for insert_pos in range(len(player.hand) + 1):  # +1 to include inserting at the end
-                # Add normal scout actions
+        can_scout = len(self.table_set) > 0
+        if self.force_play_if_possible and playable_segments:
+            can_scout = False
+
+        if can_scout:
+            allow_back = len(self.table_set) > 1
+            for insert_pos in range(len(player.hand) + 1):
                 all_actions.append(ScoutAction(True, insert_pos, False, action_list))
                 all_actions.append(ScoutAction(True, insert_pos, True, action_list))
-                if len(self.table_set) > 1:
+                if allow_back:
                     all_actions.append(ScoutAction(False, insert_pos, False, action_list))
                     all_actions.append(ScoutAction(False, insert_pos, True, action_list))
 

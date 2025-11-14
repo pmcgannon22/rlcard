@@ -12,10 +12,16 @@ from rlcard.games.scout.utils import get_action_list
 
 
 class ScoutGame:
-    def __init__(self, num_players: int = 4, allow_step_back: bool = False) -> None:
+    def __init__(
+        self,
+        num_players: int = 4,
+        allow_step_back: bool = False,
+        force_play_if_possible: bool = True,
+    ) -> None:
         self.allow_step_back: bool = allow_step_back
         self.np_random = np.random.RandomState()
         self.num_players: int = num_players
+        self.force_play_if_possible: bool = force_play_if_possible
         self.dealer: Dealer | None = None
         self.round: Round | None = None
         self.history: list[tuple[Dealer, Round]] = []
@@ -42,7 +48,7 @@ class ScoutGame:
         self.dealer = Dealer(self.np_random)
 
         # Initialize a Round
-        self.round = Round(self.dealer, self.num_players)
+        self.round = Round(self.dealer, self.num_players, self.force_play_if_possible)
 
         # Save the hisory for stepping back to the last state.
         self.history = []

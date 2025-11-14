@@ -11,7 +11,7 @@ from rlcard.agents.human_agents.scout_human_agent import HumanAgent
 
 # Load the trained DQN model
 device = 'cpu'
-dqn_agent = torch.load('experiments/scout_dqn_restart/model.pth', weights_only=False, map_location=device)
+dqn_agent = torch.load('experiments/scout_dqn_retrain/model.pth', weights_only=False, map_location=device)
 dqn_agent.set_device(device)
 
 # Create human agent

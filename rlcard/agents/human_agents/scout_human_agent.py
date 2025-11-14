@@ -5,17 +5,20 @@ class HumanAgent(object):
     ''' A human agent for Scout. It can be used to play against trained models
     '''
 
-    def __init__(self, num_actions):
+    def __init__(self, num_actions, advisor=None, suggestion_label="⭐"):
         ''' Initialize the human agent
 
         Args:
             num_actions (int): the size of the output action space
+            advisor: Optional RL agent used to suggest moves
+            suggestion_label (str): Marker displayed next to the suggested action
         '''
         self.use_raw = True
         self.num_actions = num_actions
+        self.advisor = advisor
+        self.suggestion_label = suggestion_label
 
-    @staticmethod
-    def step(state):
+    def step(self, state):
         ''' Human agent will display the state and make decisions through interfaces
 
         Args:
@@ -25,7 +28,12 @@ class HumanAgent(object):
             action (int): The action decided by human
         '''
         _print_state(state['raw_obs'], state['action_record'])
-        action = _get_human_action(state['raw_legal_actions'], state['raw_obs'])
+        action = _get_human_action(
+            state['raw_legal_actions'],
+            state,
+            advisor=self.advisor,
+            suggestion_label=self.suggestion_label,
+        )
         return action
 
     def eval_step(self, state):
@@ -104,7 +112,7 @@ def _print_recent_action(action_info):
             cards_str = ', '.join([f'[{card}]' for card in context['cards']])
             print(f'PLAY {cards_str}')
         elif context.get('action_type') == 'scout':
-            card_str = f'[{context.get('card', 'Unknown')}]'
+            card_str = f"[{context.get('card', 'Unknown')}]"
             direction = context['direction']
             flip_str = ' (flipped)' if context.get('flipped', False) else ''
             print(f'SCOUT {card_str}{flip_str} from {direction} of table set')
@@ -197,17 +205,32 @@ def _print_action(action, state=None):
     else:
         print(str(action))
 
-def _get_human_action(legal_actions, state):
+def _find_suggested_action(legal_actions, state, advisor):
+    if advisor is None:
+        return None
+    try:
+        suggested_id, _ = advisor.eval_step(state)
+    except Exception:
+        return None
+    for action in legal_actions:
+        if getattr(action, 'action_id', None) == suggested_id:
+            return action
+    return None
+
+def _get_human_action(legal_actions, state, advisor=None, suggestion_label="⭐"):
     ''' Get action from human input
 
     Args:
         legal_actions (list): A list of legal actions
         state (dict): The current game state
+        advisor: Optional RL agent for suggested move
 
     Returns:
         action (ScoutEvent): The action chosen by human
     '''
     print('=========== Actions You Can Choose ===========')
+    raw_state = state['raw_obs']
+    suggested_action = _find_suggested_action(legal_actions, state, advisor)
     
     # Group actions by type for better display
     play_actions = []
@@ -223,15 +246,17 @@ def _get_human_action(legal_actions, state):
     if play_actions:
         print('\n--- PLAY Actions (play cards from your hand) ---')
         for idx, action in play_actions:
-            print(f'{idx}: ', end='')
-            _print_action(action, state)
+            marker = suggestion_label if action is suggested_action else ' '
+            print(f'{idx}: {marker} ', end='')
+            _print_action(action, raw_state)
     
     # Display scout actions
     if scout_actions:
         print('\n--- SCOUT Actions (take card from table) ---')
         for idx, action in scout_actions:
-            print(f'{idx}: ', end='')
-            _print_action(action, state)
+            marker = suggestion_label if action is suggested_action else ' '
+            print(f'{idx}: {marker} ', end='')
+            _print_action(action, raw_state)
     
     print('\n=============================================')
     
