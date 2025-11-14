@@ -19,10 +19,17 @@ from .utils.action_event import ScoutEvent, ScoutAction, PlayAction
 DEBUG = False
 
 class ScoutRound:
-    def __init__(self, dealer: ScoutDealer, num_players: int, force_play_if_possible: bool = True) -> None:
+    def __init__(
+        self,
+        dealer: ScoutDealer,
+        num_players: int,
+        force_play_if_possible: bool = True,
+        max_hand_size: int = 16,
+    ) -> None:
         self.dealer = dealer
         self.num_players = num_players
         self.force_play_if_possible = force_play_if_possible
+        self.max_hand_size = max_hand_size
         self.players: list[ScoutPlayer] = [ScoutPlayer(player_id=i) for i in range(num_players)]
         self.table_set: list[Card] = []
         self.table_owner: int | None = None
@@ -208,8 +215,8 @@ class ScoutRound:
         player = self.players[self.current_player_id]
         all_actions: list[ScoutEvent] = []
 
-        # Generate the action list for the current hand size
-        action_list = get_action_list(len(player.hand))
+        # Generate the action list for the maximum hand size to keep IDs consistent
+        action_list = get_action_list(self.max_hand_size)
 
         # 1) Generate all valid sets the player could play
         possible_sets: list[CardSegment] = find_all_scout_segments(player.hand)
@@ -223,9 +230,7 @@ class ScoutRound:
 
         # 2) Scout actions
         # For each card in table_set, for each insertion position in player's hand
-        can_scout = len(self.table_set) > 0
-        if self.force_play_if_possible and playable_segments:
-            can_scout = False
+        can_scout = len(self.table_set) > 0 and len(player.hand) < self.max_hand_size
 
         if can_scout:
             allow_back = len(self.table_set) > 1

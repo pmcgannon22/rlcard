@@ -88,7 +88,12 @@ def _print_state(state, action_record):
     
     print('=============== Game Info ===============')
     print(f'Your score: {state.get("points", 0)}')
-    print(f'Consecutive scouts: {state.get("consecutive_scouts", 0)}')
+    consecutive = state.get("consecutive_scouts", 0)
+    num_players = state.get("num_players", len(state.get("num_cards", {})) or 4)
+    warning = ""
+    if state.get("table_owner") is not None and consecutive + 1 >= num_players - 1:
+        warning = " \u26a0\ufe0f WARNING: Next scout ends round!"
+    print(f'Consecutive scouts: {consecutive}{warning}')
     
     # Show other players' hand sizes if available
     if 'num_players' in state:

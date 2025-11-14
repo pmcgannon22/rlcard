@@ -17,11 +17,13 @@ class ScoutGame:
         num_players: int = 4,
         allow_step_back: bool = False,
         force_play_if_possible: bool = True,
+        max_hand_size: int = 16,
     ) -> None:
         self.allow_step_back: bool = allow_step_back
         self.np_random = np.random.RandomState()
         self.num_players: int = num_players
         self.force_play_if_possible: bool = force_play_if_possible
+        self.max_hand_size: int = max_hand_size
         self.dealer: Dealer | None = None
         self.round: Round | None = None
         self.history: list[tuple[Dealer, Round]] = []
@@ -48,7 +50,12 @@ class ScoutGame:
         self.dealer = Dealer(self.np_random)
 
         # Initialize a Round
-        self.round = Round(self.dealer, self.num_players, self.force_play_if_possible)
+        self.round = Round(
+            self.dealer,
+            self.num_players,
+            self.force_play_if_possible,
+            self.max_hand_size,
+        )
 
         # Save the hisory for stepping back to the last state.
         self.history = []

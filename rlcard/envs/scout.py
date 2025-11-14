@@ -23,7 +23,7 @@ class ScoutEnv(Env):
         self.name = 'scout'
         self.hand_size = config.get('hand_size', DEFAULT_GAME_CONFIG['hand_size'])
         self.rank_count = config.get('rank_count', DEFAULT_GAME_CONFIG['rank_count'])
-        self.game = Game()
+        self.game = Game(max_hand_size=self.hand_size)
         super().__init__(config)
         self._build_observation_spec()
         self.state_shape = [[self._obs_vector_length] for _ in range(self.num_players)]
@@ -123,8 +123,7 @@ class ScoutEnv(Env):
 
     def _decode_action(self, action_id):
         # Generate the action list for the current player's hand size
-        player = self.game.round.players[self.game.round.current_player_id]
-        action_list = get_action_list(len(player.hand))
+        action_list = get_action_list(self.hand_size)
         return ScoutEvent.from_action_id(action_id, action_list)
     
     def _get_legal_actions(self):
