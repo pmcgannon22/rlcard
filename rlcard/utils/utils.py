@@ -178,6 +178,46 @@ def reorganize(trajectories, payoffs):
             new_trajectories[player].append(transition)
     return new_trajectories
 
+def reorganize_with_shaped_rewards(trajectories, payoffs, shaped_rewards):
+    ''' Reorganize trajectory using shaped rewards for intermediate feedback
+
+    This version uses shaped rewards for all transitions instead of sparse
+    rewards only at the end. The final transition still receives the true payoff.
+
+    Args:
+        trajectories (list): A list of trajectories
+        payoffs (list): A list of payoffs for the players
+        shaped_rewards (list): A list of shaped rewards per player per transition
+
+    Returns:
+        (list): New trajectories that can be fed into RL algorithms
+
+    '''
+    num_players = len(trajectories)
+    new_trajectories = [[] for _ in range(num_players)]
+
+    for player in range(num_players):
+        transition_idx = 0
+        for i in range(0, len(trajectories[player])-2, 2):
+            if i == len(trajectories[player])-3:
+                # Final transition: use true payoff plus shaped reward
+                reward = payoffs[player]
+                if transition_idx < len(shaped_rewards[player]):
+                    reward += shaped_rewards[player][transition_idx]
+                done = True
+            else:
+                # Intermediate transition: use shaped reward
+                reward = shaped_rewards[player][transition_idx] if transition_idx < len(shaped_rewards[player]) else 0
+                done = False
+
+            transition = trajectories[player][i:i+3].copy()
+            transition.insert(2, reward)
+            transition.append(done)
+            new_trajectories[player].append(transition)
+            transition_idx += 1
+
+    return new_trajectories
+
 def remove_illegal(action_probs, legal_actions):
     ''' Remove illegal actions and normalize the
         probability vector

@@ -29,6 +29,21 @@ class ScoutEnv(Env):
         self.state_shape = [[self._obs_vector_length] for _ in range(self.num_players)]
         self.action_shape = [None for _ in range(self.num_players)]
 
+        # Reward shaping configuration
+        self.use_reward_shaping = config.get('reward_shaping', True)
+        self.prev_state = None  # Track previous state for reward shaping
+        self.shaped_rewards = [[] for _ in range(self.num_players)]  # Track shaped rewards per player
+
+    def reset(self):
+        ''' Reset the environment and clear shaped rewards
+
+        Returns:
+            (tuple): Tuple containing initial state and player ID
+        '''
+        self.shaped_rewards = [[] for _ in range(self.num_players)]
+        self.prev_state = None
+        return super().reset()
+
     def _extract_state(self, raw_state):
         """
         raw_state: dict with keys like:
@@ -67,15 +82,22 @@ class ScoutEnv(Env):
             action = self._decode_action(action)
 
         self.timestep += 1
-        
-        # Get current state before the action for context
-        current_state = self.game.get_state(self.get_player_id())
-        
+
+        # Get current state before the action for context and reward shaping
+        current_player_id = self.get_player_id()
+        current_state = self.game.get_state(current_player_id)
+
         # Record the action with enhanced context
         action_context = self._get_action_context(action, current_state)
-        self.action_recorder.append((self.get_player_id(), action, action_context))
-        
+        self.action_recorder.append((current_player_id, action, action_context))
+
+        # Execute the game step
         next_state, player_id = self.game.step(action)
+
+        # Compute and store shaped reward for this transition
+        if self.use_reward_shaping:
+            shaped_reward = self._compute_shaped_reward(current_state, action, next_state)
+            self.shaped_rewards[current_player_id].append(shaped_reward)
 
         return self._extract_state(next_state), player_id
 
@@ -127,6 +149,81 @@ class ScoutEnv(Env):
         '''
         return self.game.get_perfect_information()
 
+    def _compute_shaped_reward(self, prev_state, action, next_state):
+        ''' Compute shaped reward to provide intermediate feedback
+
+        Reward shaping provides immediate feedback on actions to accelerate learning.
+        Uses potential-based shaping to maintain optimal policy guarantees.
+
+        Args:
+            prev_state (dict): State before action
+            action (ScoutEvent): Action taken
+            next_state (dict): State after action
+
+        Returns:
+            (float): Shaped reward value
+        '''
+        if not self.use_reward_shaping or prev_state is None:
+            return 0.0
+
+        reward = 0.0
+
+        # 1. Reward for gaining points (most important signal)
+        points_gained = next_state.get('points', 0) - prev_state.get('points', 0)
+        reward += points_gained * 2.0
+
+        # 2. Penalty for forced scout (couldn't play any cards)
+        if next_state.get('current_player_forced_scout', False):
+            reward -= 0.2
+
+        # 3. Small penalty for hand size (encourage playing cards)
+        hand_size_prev = len(prev_state.get('hand', []))
+        hand_size_next = len(next_state.get('hand', []))
+        hand_reduction = hand_size_prev - hand_size_next
+        if hand_reduction > 0:
+            # Reward for reducing hand size
+            reward += hand_reduction * 0.1
+            # Bonus for playing long combos
+            if hand_reduction >= 4:
+                reward += 0.3
+        elif hand_reduction < 0:
+            # Small penalty for scouting (increasing hand size)
+            reward -= 0.05
+
+        # 4. Potential-based shaping for game state quality
+        gamma = 0.99
+        prev_potential = self._compute_state_potential(prev_state)
+        next_potential = self._compute_state_potential(next_state)
+        reward += gamma * next_potential - prev_potential
+
+        return reward
+
+    def _compute_state_potential(self, state):
+        ''' Compute potential function for state (higher is better)
+
+        This provides a heuristic measure of how good a game state is.
+
+        Args:
+            state (dict): Game state
+
+        Returns:
+            (float): Potential value
+        '''
+        potential = 0.0
+
+        # Current score is valuable
+        potential += state.get('points', 0) * 1.0
+
+        # Fewer cards in hand is better (closer to winning)
+        hand_size = len(state.get('hand', []))
+        potential -= hand_size * 0.2
+
+        # Being table owner is advantageous
+        if state.get('table_owner') == self.game.get_player_id():
+            potential += 0.5
+
+        return potential
+
     def _decode_action(self, action_id):
         # Generate the action list for the current player's hand size
         action_list = get_action_list(self.hand_size)
@@ -137,9 +234,82 @@ class ScoutEnv(Env):
         legal_ids = {action.action_id: None for action in legal_actions}
         return OrderedDict(legal_ids)
 
+    def get_action_feature(self, action_id):
+        ''' Get semantic features for an action
+
+        This method encodes actions with meaningful features that help the network
+        understand action semantics, rather than treating action IDs as arbitrary integers.
+
+        Args:
+            action_id (int): The ID of the action
+
+        Returns:
+            (np.ndarray): A feature vector representing the action semantics
+        '''
+        from .utils.action_event import PlayAction, ScoutAction
+
+        # Decode the action
+        action = self._decode_action(action_id)
+
+        # Get current game state to extract card information
+        try:
+            state = self.game.get_state(self.game.get_player_id())
+            hand = state.get('hand', [])
+        except:
+            hand = []
+
+        if isinstance(action, PlayAction):
+            # Extract segment information
+            start_idx = action.start_idx
+            end_idx = action.end_idx
+            combo_length = end_idx - start_idx
+
+            # Get cards if available
+            if hand and end_idx <= len(hand):
+                segment = hand[start_idx:end_idx]
+                min_rank = min([c.rank for c in segment])
+                max_rank = max([c.rank for c in segment])
+
+                # Determine combo type
+                if combo_length == 1:
+                    combo_type = 0  # Single
+                elif all(c.rank == segment[0].rank for c in segment):
+                    combo_type = 2  # Group (same rank)
+                else:
+                    combo_type = 1  # Run (consecutive)
+            else:
+                min_rank = 0
+                max_rank = 0
+                combo_type = 0
+
+            return np.array([
+                0.0,                              # Action type: play
+                start_idx / float(self.hand_size),  # Normalized position
+                end_idx / float(self.hand_size),    # Normalized end position
+                combo_length / float(self.hand_size),  # Normalized length
+                combo_type / 2.0,                   # Combo type (0=single, 1=run, 2=group)
+                min_rank / float(self.rank_count),  # Min rank in combo
+                max_rank / float(self.rank_count),  # Max rank in combo
+            ], dtype=np.float32)
+
+        elif isinstance(action, ScoutAction):
+            return np.array([
+                1.0,                                          # Action type: scout
+                1.0 if action.from_front else 0.0,            # Front or back
+                action.insertion_in_hand / float(self.hand_size),  # Insert position
+                1.0 if action.flip else 0.0,                  # Flipped
+                0.0, 0.0, 0.0                                 # Padding to match play features
+            ], dtype=np.float32)
+
+        else:
+            # Unknown action type - return zeros
+            return np.zeros(7, dtype=np.float32)
+
     def _build_observation_spec(self) -> None:
         """Pre-compute observation layout so ordering is preserved."""
-        self._card_plane_size = self.hand_size * self.rank_count
+        # DENSE ENCODING: Use normalized values instead of one-hot
+        # Each card position has 2 features: normalized top and bottom values
+        self._card_plane_size = self.hand_size * 2  # Changed from hand_size * rank_count
         # owner one-hot (+1 for None), consecutive scouts, per-player hand counts,
         # player score, table length, orientation flag, forced-scout indicator,
         # and table front/back rank hints
@@ -152,16 +322,18 @@ class ScoutEnv(Env):
             + self._extra_scalar_features
         )
         self._obs_vector_length = (
-            self._card_plane_size * 4  # hand/table primary & secondary values
+            self._card_plane_size * 2  # hand and table (primary & secondary are now combined)
             + self.hand_size * 2       # hand/table occupancy masks
             + self._info_vector_len
         )
         start = 0
         self._obs_slices: Dict[str, Tuple[int, int]] = {}
-        for key in ('hand_primary', 'hand_secondary', 'table_primary', 'table_secondary'):
-            end = start + self._card_plane_size
-            self._obs_slices[key] = (start, end)
-            start = end
+        # Hand cards: hand_size * 2 (top, bottom for each position)
+        self._obs_slices['hand_cards'] = (start, start + self._card_plane_size)
+        start += self._card_plane_size
+        # Table cards: hand_size * 2 (top, bottom for each position)
+        self._obs_slices['table_cards'] = (start, start + self._card_plane_size)
+        start += self._card_plane_size
         self._obs_slices['hand_mask'] = (start, start + self.hand_size)
         start += self.hand_size
         self._obs_slices['table_mask'] = (start, start + self.hand_size)
@@ -169,26 +341,33 @@ class ScoutEnv(Env):
         self._obs_slices['info'] = (start, start + self._info_vector_len)
 
     def _build_observation_vector(self, raw_state: dict) -> np.ndarray:
-        """Encode ordered hand/table information plus scalar context."""
-        hand_primary = np.zeros((self.hand_size, self.rank_count), dtype=np.float32)
-        hand_secondary = np.zeros_like(hand_primary)
-        table_primary = np.zeros_like(hand_primary)
-        table_secondary = np.zeros_like(hand_primary)
+        """Encode ordered hand/table information plus scalar context.
+
+        DENSE ENCODING: Each card is represented by 2 normalized values (top, bottom)
+        instead of one-hot encoding. This reduces dimensionality and preserves
+        ordinal relationships between ranks.
+        """
+        # Hand cards: shape (hand_size, 2) for [top_value, bottom_value]
+        hand_cards = np.zeros((self.hand_size, 2), dtype=np.float32)
+        # Table cards: shape (hand_size, 2) for [top_value, bottom_value]
+        table_cards = np.zeros((self.hand_size, 2), dtype=np.float32)
         hand_mask = np.zeros(self.hand_size, dtype=np.float32)
         table_mask = np.zeros(self.hand_size, dtype=np.float32)
 
+        # Encode hand cards with normalized dense values
         for i, card in enumerate(raw_state['hand']):
             if i >= self.hand_size:
                 break
-            hand_primary[i, self._rank_to_index(card.rank)] = 1.0
-            hand_secondary[i, self._rank_to_index(card.bottom)] = 1.0
+            hand_cards[i, 0] = self._normalize_rank_value(card.rank)
+            hand_cards[i, 1] = self._normalize_rank_value(card.bottom)
             hand_mask[i] = 1.0
 
+        # Encode table cards with normalized dense values
         for j, card in enumerate(raw_state['table_set']):
             if j >= self.hand_size:
                 break
-            table_primary[j, self._rank_to_index(card.rank)] = 1.0
-            table_secondary[j, self._rank_to_index(card.bottom)] = 1.0
+            table_cards[j, 0] = self._normalize_rank_value(card.rank)
+            table_cards[j, 1] = self._normalize_rank_value(card.bottom)
             table_mask[j] = 1.0
 
         info_vec = np.zeros(self._info_vector_len, dtype=np.float32)
@@ -223,11 +402,11 @@ class ScoutEnv(Env):
             offset == self._info_vector_len
         ), f"Scout info vector mis-sized ({offset} != {self._info_vector_len})"
 
+        # Concatenate all observation components
+        # DENSE ENCODING: hand_cards and table_cards are now (hand_size, 2) arrays
         obs_components = [
-            hand_primary.ravel(),
-            hand_secondary.ravel(),
-            table_primary.ravel(),
-            table_secondary.ravel(),
+            hand_cards.ravel(),   # Flatten (hand_size, 2) -> (hand_size * 2,)
+            table_cards.ravel(),  # Flatten (hand_size, 2) -> (hand_size * 2,)
             hand_mask,
             table_mask,
             info_vec,
