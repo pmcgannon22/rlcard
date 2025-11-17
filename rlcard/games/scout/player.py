@@ -37,3 +37,9 @@ class ScoutPlayer:
 
     def get_player_id(self) -> int:
         return self.player_id
+
+    def set_hand(self, new_hand: list[ScoutCard]) -> None:
+        self.hand = new_hand
+
+    def flip_orientation(self) -> None:
+        self.hand = [card.flip() for card in self.hand]

@@ -13,9 +13,9 @@ if __package__ is None or __package__ == "":
     ROOT = _Path(__file__).resolve().parents[2]
     if str(ROOT) not in sys.path:
         sys.path.insert(0, str(ROOT))
-    from web.scout_web_backend.game_manager import GameConfig, ScoutWebGame
+    from web.scout_web_backend import GameConfig, ScoutWebGame
 else:
-    from .game_manager import GameConfig, ScoutWebGame
+    from . import GameConfig, ScoutWebGame
 
 
 def create_app(config: GameConfig, static_dir: Optional[Path]) -> Flask:
@@ -63,6 +63,27 @@ def create_app(config: GameConfig, static_dir: Optional[Path]) -> Flask:
         except ValueError as err:
             return jsonify({'error': str(err)}), 400
 
+    @app.route('/api/orientation', methods=['POST'])
+    def orientation_action():
+        payload = request.get_json(force=True) or {}
+        reverse = bool(payload.get('reverse', False))
+        state = game.choose_orientation(reverse)
+        return jsonify(state)
+
+    @app.route('/api/advisor', methods=['POST'])
+    def advisor_toggle():
+        payload = request.get_json(force=True) or {}
+        enabled = bool(payload.get('enabled', True))
+        game.set_advisor_enabled(enabled)
+        return jsonify(game.serialize_state())
+
+    @app.route('/api/debug', methods=['POST'])
+    def debug_toggle():
+        payload = request.get_json(force=True) or {}
+        enabled = bool(payload.get('enabled', False))
+        game.set_debug_enabled(enabled)
+        return jsonify(game.serialize_state())
+
     if static_folder:
         @app.route('/', defaults={'path': ''})
         @app.route('/<path:path>')
@@ -82,6 +103,8 @@ def main():
     parser.add_argument('--checkpoint', type=str, default=None, help='Path to DMC checkpoint (model.tar)')
     parser.add_argument('--human-position', type=int, default=0, help='Seat index for human player')
     parser.add_argument('--device', default='cpu', help='Device for DMC agents (cpu or CUDA index)')
+    parser.add_argument('--no-advisor', action='store_true', help='Disable advisor suggestions')
+    parser.add_argument('--debug-values', action='store_true', help='Enable inference debug overlays')
     parser.add_argument('--static-dir', type=str, default=None,
                         help='Optional path to pre-built frontend assets (defaults to web/scout-ui/dist)')
     args = parser.parse_args()
@@ -97,6 +120,8 @@ def main():
         checkpoint=checkpoint_path,
         human_position=args.human_position,
         device=args.device,
+        advisor_enabled=not args.no_advisor,
+        debug_enabled=args.debug_values,
     )
     app = create_app(config, static_dir)
     app.run(host=args.host, port=args.port, debug=False, use_reloader=False)

@@ -11,12 +11,14 @@ export interface ActionOption {
   description: string;
   type: 'play' | 'scout' | 'other';
   isSuggestion: boolean;
+  value?: number | null;
 }
 
 export interface ActionLog {
   player: number;
   label: string;
   context: Record<string, unknown>;
+  value?: number | null;
 }
 
 export interface ScoreEntry {
@@ -24,20 +26,22 @@ export interface ScoreEntry {
   score: number;
   hand_size: number;
   payoff: number | null;
+  state_value?: number | null;
 }
 
 export interface ScoutTarget {
   direction: 'front' | 'back';
   card: Card;
   allowFlip: boolean;
+  value?: number | null;
 }
 
 export interface ScoutInfo {
   canScout: boolean;
   targets: ScoutTarget[];
   insertionSlots: number[];
-  arrows: Array<{ slot: number; label: string }>;
-  actions: Array<{ action_id: number; direction: 'front' | 'back'; flip: boolean; insertion: number }>;
+  arrows: Array<{ slot: number; label: string; value?: number | null }>;
+  actions: Array<{ action_id: number; direction: 'front' | 'back'; flip: boolean; insertion: number; value?: number | null }>;
 }
 
 export interface ScoutState {
@@ -60,4 +64,12 @@ export interface ScoutState {
   winner_text: string | null;
   action_prompt: string;
   num_players: number;
+  orientation_pending: boolean;
+  orientation_advice?: {
+    recommendation: 'keep' | 'reverse' | 'either';
+    keep_value?: number | null;
+    reverse_value?: number | null;
+  } | null;
+  advisor_enabled: boolean;
+  debug_enabled: boolean;
 }

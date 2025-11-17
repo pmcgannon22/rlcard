@@ -35,6 +35,9 @@ class ScoutRound:
         self.table_owner: int | None = None
         self.consecutive_scouts: int = 0
         self.game_over: bool = False
+        self.orientation_locked: list[bool] = [False for _ in range(num_players)]
+        self.orientation_flipped: list[bool] = [False for _ in range(num_players)]
+        self.current_player_forced_scout: bool = False
         # Deal cards in a round-robin fashion so ordering stays meaningful
         self.dealer.shuffle()
         player_idx = 0
@@ -45,6 +48,17 @@ class ScoutRound:
 
         # Choose first player
         self.current_player_id: int = self.dealer.np_random.randint(self.num_players)
+
+    def choose_orientation(self, player_id: int, reverse: bool = False) -> None:
+        if self.orientation_locked[player_id]:
+            return
+        player = self.players[player_id]
+        if reverse:
+            player.hand = [card.flip() for card in player.hand]
+            self.orientation_flipped[player_id] = True
+        else:
+            self.orientation_flipped[player_id] = False
+        self.orientation_locked[player_id] = True
 
     def proceed_round(self, action: ScoutEvent) -> tuple[int, bool]:
         """
@@ -62,7 +76,12 @@ class ScoutRound:
             }
         Returns: next_player_id, rewards, done
         """
+        if not self.orientation_locked[self.current_player_id]:
+            self.choose_orientation(self.current_player_id, False)
+
         player = self.players[self.current_player_id]
+
+        forced_scout = self.current_player_forced_scout
 
         if isinstance(action, PlayAction):
             # Validate the set is stronger than self.table_set
@@ -85,12 +104,6 @@ class ScoutRound:
             self.table_owner = self.current_player_id
             self.consecutive_scouts = 0  # reset since we have a new table set
 
-            # Possibly award a token or keep track of that for end-of-round scoring
-            
-            # Check if player emptied their hand
-            if len(player.hand) == 0:
-                self.game_over = True
-
         elif isinstance(action, ScoutAction):
             from_front = action.from_front
             insertion_position_in_hand = action.insertion_in_hand
@@ -107,10 +120,8 @@ class ScoutRound:
                 
             player.insert_card(scout_card, insertion_position_in_hand)
 
-            # The table owner gets +1 if the current player was forced to scout 
-            # (i.e. they had no valid play). 
-            # For RL simplicity, you might handle it here or in Judger.
-            if self.table_owner is not None:
+            # If forced scout, award point to table owner from "bank"
+            if forced_scout and self.table_owner is not None:
                 self.players[self.table_owner].score += 1
 
             self.consecutive_scouts += 1
@@ -122,7 +133,6 @@ class ScoutRound:
             if self.consecutive_scouts == self.num_players - 1 and self.table_owner is not None:
                 if DEBUG:
                     print("All players have scouted consecutively, round ends.")
-                self.players[self.table_owner].score += len(self.table_set)
                 self.game_over = True
 
         else:
@@ -203,7 +213,12 @@ class ScoutRound:
             'legal_actions': self.get_legal_actions(),
             'num_players': self.num_players,
             'current_player': self.current_player_id,
-            'num_cards': {i: len(self.players[i].hand) for i in range(self.num_players)}
+            'num_cards': {i: len(self.players[i].hand) for i in range(self.num_players)},
+            'must_choose_orientation': not self.orientation_locked[player_id],
+            'orientation_flipped': self.orientation_flipped[player_id],
+            'table_front_top': self.table_set[0].top if self.table_set else 0,
+            'table_back_top': self.table_set[-1].top if self.table_set else 0,
+            'current_player_forced_scout': self.current_player_forced_scout,
         }
         return state
 
@@ -230,6 +245,7 @@ class ScoutRound:
 
         # 2) Scout actions
         # For each card in table_set, for each insertion position in player's hand
+        self.current_player_forced_scout = len(playable_segments) == 0
         can_scout = len(self.table_set) > 0 and len(player.hand) < self.max_hand_size
 
         if can_scout:

@@ -5,7 +5,7 @@ class HumanAgent(object):
     ''' A human agent for Scout. It can be used to play against trained models
     '''
 
-    def __init__(self, num_actions, advisor=None, suggestion_label="⭐"):
+    def __init__(self, num_actions, advisor=None, suggestion_label="⭐", orientation_handler=None):
         ''' Initialize the human agent
 
         Args:
@@ -17,6 +17,7 @@ class HumanAgent(object):
         self.num_actions = num_actions
         self.advisor = advisor
         self.suggestion_label = suggestion_label
+        self.orientation_handler = orientation_handler
 
     def step(self, state):
         ''' Human agent will display the state and make decisions through interfaces
@@ -27,6 +28,7 @@ class HumanAgent(object):
         Returns:
             action (int): The action decided by human
         '''
+        state = self._maybe_choose_orientation(state)
         _print_state(state['raw_obs'], state['action_record'])
         action = _get_human_action(
             state['raw_legal_actions'],
@@ -35,6 +37,17 @@ class HumanAgent(object):
             suggestion_label=self.suggestion_label,
         )
         return action
+
+    def _maybe_choose_orientation(self, state):
+        raw_state = state['raw_obs']
+        if raw_state.get('must_choose_orientation'):
+            if self.orientation_handler:
+                new_state = self.orientation_handler(state)
+                if new_state:
+                    return new_state
+            # Default to keeping orientation
+            raw_state['must_choose_orientation'] = False
+        return state
 
     def eval_step(self, state):
         ''' Predict the action given the current state for evaluation. The same to step here.

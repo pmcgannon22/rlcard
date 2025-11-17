@@ -145,3 +145,6 @@ class ScoutGame:
         if self.round is None:
             raise RuntimeError("Round has not been initialized. Call init_game() first.")
         return self.round
+
+    def set_orientation(self, player_id: int, reverse: bool = False) -> None:
+        self._require_round().choose_orientation(player_id, reverse)

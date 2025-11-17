@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 
 import numpy as np
 
@@ -96,6 +96,9 @@ class ScoutEnv(Env):
             cards = state['hand'][action.start_idx:action.end_idx]
             context['cards'] = [f'{card.top}/{card.bottom}' for card in cards]
             context['action_type'] = 'play'
+            context['start_idx'] = action.start_idx
+            context['end_idx'] = action.end_idx
+            context['action_id'] = action.action_id
         elif hasattr(action, 'from_front') and hasattr(action, 'insertion_in_hand'):  # ScoutAction
             # Get the card being scouted
             if state['table_set']:
@@ -106,6 +109,9 @@ class ScoutEnv(Env):
                 context['card'] = f'{scout_card.top}/{scout_card.bottom}'
                 context['direction'] = 'front' if action.from_front else 'back'
                 context['flipped'] = action.flip if hasattr(action, 'flip') else False
+            context['insertion'] = action.insertion_in_hand
+            context['action_type'] = 'scout'
+            context['action_id'] = action.action_id
             context['action_type'] = 'scout'
         
         return context
@@ -135,8 +141,16 @@ class ScoutEnv(Env):
         """Pre-compute observation layout so ordering is preserved."""
         self._card_plane_size = self.hand_size * self.rank_count
         # owner one-hot (+1 for None), consecutive scouts, per-player hand counts,
-        # player score, table length
-        self._info_vector_len = (self.num_players + 1) + 1 + self.num_players + 2
+        # player score, table length, orientation flag, forced-scout indicator,
+        # and table front/back rank hints
+        self._extra_scalar_features = 4
+        self._info_vector_len = (
+            (self.num_players + 1)
+            + 1
+            + self.num_players
+            + 2
+            + self._extra_scalar_features
+        )
         self._obs_vector_length = (
             self._card_plane_size * 4  # hand/table primary & secondary values
             + self.hand_size * 2       # hand/table occupancy masks
@@ -193,6 +207,21 @@ class ScoutEnv(Env):
         info_vec[offset] = raw_state.get('points', 0) / max(1, self.hand_size)
         offset += 1
         info_vec[offset] = len(raw_state.get('table_set', [])) / max(1, self.hand_size)
+        offset += 1
+
+        # Orientation (1 if flipped), forced scout flag, and table front/back ranks
+        info_vec[offset] = 1.0 if raw_state.get('orientation_flipped') else 0.0
+        offset += 1
+        info_vec[offset] = 1.0 if raw_state.get('current_player_forced_scout') else 0.0
+        offset += 1
+        info_vec[offset] = self._normalize_rank_value(raw_state.get('table_front_top', 0))
+        offset += 1
+        info_vec[offset] = self._normalize_rank_value(raw_state.get('table_back_top', 0))
+        offset += 1
+
+        assert (
+            offset == self._info_vector_len
+        ), f"Scout info vector mis-sized ({offset} != {self._info_vector_len})"
 
         obs_components = [
             hand_primary.ravel(),
@@ -210,3 +239,10 @@ class ScoutEnv(Env):
         if rank_value is None:
             return 0
         return max(1, min(rank_value, self.rank_count)) - 1
+
+    def _normalize_rank_value(self, rank_value: Optional[int]) -> float:
+        """Map public rank info into [0,1] for scalar channels."""
+        if not rank_value:
+            return 0.0
+        clamped = max(1, min(rank_value, self.rank_count))
+        return clamped / float(self.rank_count)
