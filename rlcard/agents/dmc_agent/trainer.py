@@ -253,7 +253,8 @@ class DMCTrainer:
         if self.load_model and os.path.exists(self.checkpointpath):
             checkpoint_states = torch.load(
                     self.checkpointpath,
-                    map_location="cuda:"+str(self.training_device) if self.training_device != "cpu" else "cpu"
+                    map_location="cuda:"+str(self.training_device) if self.training_device != "cpu" else "cpu",
+                    weights_only=False
             )
             for p in range(self.num_players):
                 learner_model.get_agent(p).load_state_dict(checkpoint_states["model_state_dict"][p])

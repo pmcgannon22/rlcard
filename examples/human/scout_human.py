@@ -19,7 +19,7 @@ def _resolve_action_shape(env):
 def _load_checkpoint_agents(env, checkpoint_path, device):
     if not os.path.exists(checkpoint_path):
         raise FileNotFoundError(f'Checkpoint not found: {checkpoint_path}')
-    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
     state_dicts = checkpoint.get('model_state_dict')
     if not state_dicts:
         raise ValueError('Checkpoint missing "model_state_dict" entries.')

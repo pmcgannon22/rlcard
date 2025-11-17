@@ -80,7 +80,7 @@ def load_dmc_agents(env, checkpoint_path: Path, device: str) -> List[DMCAgent]:
     Raises:
         ValueError: If the checkpoint is missing required data.
     """
-    data = torch.load(checkpoint_path, map_location='cpu')
+    data = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
     state_shape = env.state_shape
     action_shape = env.action_shape
 
