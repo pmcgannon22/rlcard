@@ -115,9 +115,27 @@ def train(args):
             # Periodic detailed evaluation
             if episode > 0 and episode % (args.evaluate_every * 5) == 0:
                 print(f"\n--- Detailed Evaluation at Episode {episode} ---")
-                detailed_results = tournament(env, args.num_eval_games * 2)
-                print(f"Win rate vs random: {(detailed_results[0] + 1) / 2 * 100:.1f}%")
-                print(f"Average reward: {detailed_results[0]:.4f}")
+                # Run evaluation games and calculate actual win rate
+                eval_games = args.num_eval_games * 2
+                wins, losses, ties = 0, 0, 0
+                total_reward = 0.0
+
+                for _ in range(eval_games):
+                    _, payoffs = env.run(is_training=False)
+                    total_reward += payoffs[0]
+                    # In Scout, highest score wins
+                    if payoffs[0] > max(payoffs[1:]):
+                        wins += 1
+                    elif payoffs[0] < max(payoffs[1:]):
+                        losses += 1
+                    else:
+                        ties += 1
+
+                win_rate = (wins / eval_games) * 100
+                avg_reward = total_reward / eval_games
+
+                print(f"Win rate: {win_rate:.1f}% ({wins}W-{losses}L-{ties}T)")
+                print(f"Average score advantage: {avg_reward:.4f} points")
                 print("-" * 50 + "\n")
 
         # Get the paths
