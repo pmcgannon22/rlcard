@@ -114,10 +114,13 @@ def train(args):
                 eval_results = evaluate_win_rate(env, args.num_eval_games, player_id=0)
                 logger.log_performance(episode, eval_results['avg_payoff'])
 
+                # Calculate current epsilon based on total timesteps
+                current_epsilon = agent.epsilons[min(agent.total_t, agent.epsilon_decay_steps-1)]
+
                 print(f"Episode {episode:5d} | "
                       f"Win Rate: {eval_results['win_rate']:5.1f}% | "
                       f"Avg Reward: {eval_results['avg_payoff']:6.3f} | "
-                      f"Epsilon: {agent.epsilons[0]:.3f}")
+                      f"Epsilon: {current_epsilon:.3f}")
 
             # Detailed evaluation
             if episode > 0 and episode % (args.evaluate_every * 5) == 0:

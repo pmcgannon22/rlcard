@@ -107,9 +107,12 @@ def train(args):
                 avg_reward = tournament(env, args.num_eval_games)[0]
                 logger.log_performance(episode, avg_reward)
 
+                # Calculate current epsilon based on total timesteps
+                current_epsilon = agent.epsilons[min(agent.total_t, agent.epsilon_decay_steps-1)]
+
                 # Print progress with more details
                 print(f"Episode {episode:5d} | Avg Reward: {avg_reward:7.4f} | "
-                      f"Epsilon: {agent.epsilons[0]:.3f} | "
+                      f"Epsilon: {current_epsilon:.3f} | "
                       f"Loss: {getattr(agent, 'loss', 0.0):.4f}")
 
             # Periodic detailed evaluation
