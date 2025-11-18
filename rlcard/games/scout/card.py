@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from typing import Self
+try:
+    from typing import Self  # Python 3.11+
+except ImportError:  # pragma: no cover
+    from typing_extensions import Self
 
 
 class ScoutCard:

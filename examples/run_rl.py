@@ -50,7 +50,7 @@ def train(args):
     elif args.algorithm == 'nfsp':
         from rlcard.agents import NFSPAgent
         if args.load_checkpoint_path != "":
-            agent = NFSPAgent.from_checkpoint(checkpoint=torch.load(args.load_checkpoint_path))
+            agent = NFSPAgent.from_checkpoint(checkpoint=torch.load(args.load_checkpoint_path, weights_only=False))
         else:
             agent = NFSPAgent(
                 num_actions=env.num_actions,

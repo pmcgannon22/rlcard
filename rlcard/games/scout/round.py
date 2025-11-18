@@ -104,6 +104,12 @@ class ScoutRound:
             self.table_owner = self.current_player_id
             self.consecutive_scouts = 0  # reset since we have a new table set
 
+            if len(player.hand) == 0:
+                # Player has gone out, round ends
+                if DEBUG:
+                    print(f"Player {self.current_player_id} has gone out, round ends.")
+                self.game_over = True
+
         elif isinstance(action, ScoutAction):
             from_front = action.from_front
             insertion_position_in_hand = action.insertion_in_hand

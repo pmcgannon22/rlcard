@@ -100,9 +100,9 @@ def main():
     parser = argparse.ArgumentParser(description="Scout web UI backend")
     parser.add_argument('--host', default='127.0.0.1', help='Host interface (default 127.0.0.1)')
     parser.add_argument('--port', type=int, default=8000, help='Port (default 8000)')
-    parser.add_argument('--checkpoint', type=str, default=None, help='Path to DMC checkpoint (model.tar)')
+    parser.add_argument('--checkpoint', type=str, default=None, help='Path to model checkpoint (DQN .pth or DMC .tar)')
     parser.add_argument('--human-position', type=int, default=0, help='Seat index for human player')
-    parser.add_argument('--device', default='cpu', help='Device for DMC agents (cpu or CUDA index)')
+    parser.add_argument('--device', default='cpu', help='Device for AI agents (cpu, mps, or cuda:0)')
     parser.add_argument('--no-advisor', action='store_true', help='Disable advisor suggestions')
     parser.add_argument('--debug-values', action='store_true', help='Enable inference debug overlays')
     parser.add_argument('--static-dir', type=str, default=None,

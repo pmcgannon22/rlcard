@@ -178,6 +178,46 @@ def reorganize(trajectories, payoffs):
             new_trajectories[player].append(transition)
     return new_trajectories
 
+def reorganize_with_shaped_rewards(trajectories, payoffs, shaped_rewards):
+    ''' Reorganize trajectory using shaped rewards for intermediate feedback
+
+    This version uses shaped rewards for all transitions instead of sparse
+    rewards only at the end. The final transition still receives the true payoff.
+
+    Args:
+        trajectories (list): A list of trajectories
+        payoffs (list): A list of payoffs for the players
+        shaped_rewards (list): A list of shaped rewards per player per transition
+
+    Returns:
+        (list): New trajectories that can be fed into RL algorithms
+
+    '''
+    num_players = len(trajectories)
+    new_trajectories = [[] for _ in range(num_players)]
+
+    for player in range(num_players):
+        transition_idx = 0
+        for i in range(0, len(trajectories[player])-2, 2):
+            if i == len(trajectories[player])-3:
+                # Final transition: use true payoff plus shaped reward
+                reward = payoffs[player]
+                if transition_idx < len(shaped_rewards[player]):
+                    reward += shaped_rewards[player][transition_idx]
+                done = True
+            else:
+                # Intermediate transition: use shaped reward
+                reward = shaped_rewards[player][transition_idx] if transition_idx < len(shaped_rewards[player]) else 0
+                done = False
+
+            transition = trajectories[player][i:i+3].copy()
+            transition.insert(2, reward)
+            transition.append(done)
+            new_trajectories[player].append(transition)
+            transition_idx += 1
+
+    return new_trajectories
+
 def remove_illegal(action_probs, legal_actions):
     ''' Remove illegal actions and normalize the
         probability vector
@@ -223,6 +263,55 @@ def tournament(env, num):
     for i, _ in enumerate(payoffs):
         payoffs[i] /= counter
     return payoffs
+
+def evaluate_win_rate(env, num_games, player_id=0):
+    ''' Evaluate win rate for a specific player by counting wins/losses/ties
+
+    Useful for games where payoffs are not normalized to [-1, 1], such as
+    Scout where payoffs are raw point scores. This function counts actual
+    wins (player has highest score) rather than using average payoff.
+
+    Args:
+        env (Env): The environment
+        num_games (int): Number of games to play
+        player_id (int): Which player to evaluate (default: 0)
+
+    Returns:
+        dict: Dictionary containing:
+            - 'wins': number of games won
+            - 'losses': number of games lost
+            - 'ties': number of tied games
+            - 'win_rate': percentage of games won (0-100)
+            - 'avg_payoff': average payoff/score
+            - 'total_games': total games played
+    '''
+    wins, losses, ties = 0, 0, 0
+    total_payoff = 0.0
+
+    for _ in range(num_games):
+        _, payoffs = env.run(is_training=False)
+        total_payoff += payoffs[player_id]
+
+        # Determine if player won (highest payoff)
+        player_payoff = payoffs[player_id]
+        other_payoffs = [payoffs[i] for i in range(len(payoffs)) if i != player_id]
+        max_other = max(other_payoffs) if other_payoffs else float('-inf')
+
+        if player_payoff > max_other:
+            wins += 1
+        elif player_payoff < max_other:
+            losses += 1
+        else:
+            ties += 1
+
+    return {
+        'wins': wins,
+        'losses': losses,
+        'ties': ties,
+        'win_rate': (wins / num_games) * 100 if num_games > 0 else 0,
+        'avg_payoff': total_payoff / num_games if num_games > 0 else 0,
+        'total_games': num_games
+    }
 
 def plot_curve(csv_path, save_path, algorithm):
     ''' Read data from csv file and plot the results

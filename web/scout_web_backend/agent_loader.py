@@ -7,7 +7,7 @@ from typing import List
 
 import torch
 
-from rlcard.agents import RandomAgent
+from rlcard.agents import RandomAgent, DQNAgent
 from rlcard.agents.dmc_agent.model import DMCAgent, DMCModel
 
 
@@ -80,7 +80,7 @@ def load_dmc_agents(env, checkpoint_path: Path, device: str) -> List[DMCAgent]:
     Raises:
         ValueError: If the checkpoint is missing required data.
     """
-    data = torch.load(checkpoint_path, map_location='cpu')
+    data = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
     state_shape = env.state_shape
     action_shape = env.action_shape
 
@@ -108,17 +108,87 @@ def load_dmc_agents(env, checkpoint_path: Path, device: str) -> List[DMCAgent]:
     return model.get_agents()
 
 
-def initialize_agents(env, checkpoint_path: Path | None, device: str) -> List:
-    """Initialize game agents based on configuration.
+def load_dqn_agent(env, checkpoint_path: Path, device: str) -> DQNAgent:
+    """Load a single DQN agent from a checkpoint file.
 
     Args:
         env: The RLCard environment.
-        checkpoint_path: Optional path to DMC checkpoint. If None, uses random agents.
+        checkpoint_path: Path to the DQN agent checkpoint (.pth).
+        device: Device string for PyTorch (e.g., 'cpu' or 'mps').
+
+    Returns:
+        Loaded DQN agent.
+
+    Raises:
+        ValueError: If the checkpoint cannot be loaded.
+    """
+    try:
+        agent = torch.load(checkpoint_path, map_location=device, weights_only=False)
+
+        # Verify it's a DQN agent
+        if not isinstance(agent, DQNAgent):
+            raise ValueError(f"Expected DQNAgent, got {type(agent).__name__}")
+
+        # Set device
+        if hasattr(agent, 'set_device'):
+            agent.set_device(device)
+
+        # Set to eval mode
+        if hasattr(agent, 'eval'):
+            agent.eval()
+
+        return agent
+    except Exception as e:
+        raise ValueError(f"Failed to load DQN agent: {e}")
+
+
+def initialize_agents(env, checkpoint_path: Path | None, device: str) -> List:
+    """Initialize game agents based on configuration.
+
+    Detects checkpoint type (DMC or DQN) and loads appropriately.
+    - DMC checkpoints: Dict with 'model_state_dict' for all players
+    - DQN checkpoints: Single DQNAgent object (trained as player 0)
+
+    Args:
+        env: The RLCard environment.
+        checkpoint_path: Optional path to checkpoint. If None, uses random agents.
         device: Device string for PyTorch.
 
     Returns:
         List of agents for each player position.
     """
-    if checkpoint_path:
-        return load_dmc_agents(env, checkpoint_path, device)
-    return [RandomAgent(num_actions=env.num_actions) for _ in range(env.num_players)]
+    if not checkpoint_path:
+        return [RandomAgent(num_actions=env.num_actions) for _ in range(env.num_players)]
+
+    # Load checkpoint to detect type
+    try:
+        data = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
+    except Exception as e:
+        raise ValueError(f"Failed to load checkpoint {checkpoint_path}: {e}")
+
+    # Detect checkpoint type
+    if isinstance(data, DQNAgent):
+        # DQN agent checkpoint - single agent trained as player 0
+        print(f"Detected DQN agent checkpoint")
+        agent = data
+
+        # Set device
+        if hasattr(agent, 'set_device'):
+            agent.set_device(device)
+
+        # Create agent list: DQN agent for all positions
+        # (In multiplayer, all players use the same trained agent)
+        agents = [agent for _ in range(env.num_players)]
+        return agents
+
+    elif isinstance(data, dict) and 'model_state_dict' in data:
+        # DMC checkpoint - contains state dicts for all players
+        print(f"Detected DMC checkpoint")
+        checkpoint_path_obj = checkpoint_path if isinstance(checkpoint_path, Path) else Path(checkpoint_path)
+        return load_dmc_agents(env, checkpoint_path_obj, device)
+
+    else:
+        raise ValueError(
+            f"Unknown checkpoint format. Expected DQNAgent object or dict with 'model_state_dict', "
+            f"got {type(data).__name__}"
+        )

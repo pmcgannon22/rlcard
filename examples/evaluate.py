@@ -17,7 +17,7 @@ from rlcard.utils import (
 def load_model(model_path, env=None, position=None, device=None):
     if os.path.isfile(model_path):  # Torch model
         import torch
-        agent = torch.load(model_path, map_location=device)
+        agent = torch.load(model_path, map_location=device, weights_only=False)
         agent.set_device(device)
     elif os.path.isdir(model_path):  # CFR model
         from rlcard.agents import CFRAgent
