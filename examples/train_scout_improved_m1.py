@@ -4,10 +4,13 @@ Optimized for M1/M2 Macs with:
 - MPS (Metal Performance Shaders) GPU acceleration
 - Optimized batch sizes and memory usage
 - All high-ROI improvements (dense encoding, reward shaping, action features)
+- Self-play curriculum for stronger learning
 '''
 import os
 import argparse
 import torch
+import numpy as np
+from copy import deepcopy
 import rlcard
 from rlcard.agents import RandomAgent, DQNAgent
 from rlcard.utils import (
@@ -45,15 +48,19 @@ def train(args):
     )
 
     print(f"\n{'='*60}")
-    print("SCOUT TRAINING - M1 OPTIMIZED")
+    print("SCOUT TRAINING - M1 OPTIMIZED WITH SELF-PLAY")
     print(f"{'='*60}")
     print(f"Device: {device}")
-    print(f"State shape: {env.state_shape[0]} (dense encoding)")
+    print(f"State shape: {env.state_shape[0]} (improved encoding)")
     print(f"Number of actions: {env.num_actions}")
-    print(f"Improvements enabled:")
-    print(f"  ✓ Dense encoding (83% size reduction)")
-    print(f"  ✓ Reward shaping (2-3x faster learning)")
+    print(f"\nImprovements enabled:")
+    print(f"  ✓ Improved state encoding:")
+    print(f"    - Hand cards: top values only (no orientation ambiguity)")
+    print(f"    - Table cards: 4 values for scouting decisions")
+    print(f"    - State size: {env.state_shape[0][0]} features (was 112)")
+    print(f"  ✓ Reward shaping (intermediate feedback)")
     print(f"  ✓ Action features (semantic understanding)")
+    print(f"  ✓ Self-play curriculum (learn from strong opponents)")
     print(f"{'='*60}\n")
 
     # Initialize DQN agent with M1-optimized settings
@@ -76,18 +83,68 @@ def train(args):
             replay_memory_size=args.replay_memory_size,  # M1-optimized memory
         )
 
-    # Set up agents (learning agent + random opponents)
-    agents = [agent]
-    for _ in range(1, env.num_players):
-        agents.append(RandomAgent(num_actions=env.num_actions))
+    # Self-play curriculum: progressively introduce stronger opponents
+    # We'll maintain a pool of past checkpoints to play against
+    checkpoint_pool = []  # List of (episode_num, agent_checkpoint) tuples
+
+    def get_opponents_for_episode(episode, num_opponents):
+        """Get opponent agents based on curriculum schedule"""
+        opponents = []
+
+        if episode < args.curriculum_random_episodes:
+            # Phase 1: All random opponents
+            for _ in range(num_opponents):
+                opponents.append(RandomAgent(num_actions=env.num_actions))
+
+        elif episode < args.curriculum_mixed_episodes:
+            # Phase 2: Mix of random and past checkpoints
+            # 50% random, 50% past checkpoints
+            num_random = num_opponents // 2
+            num_past = num_opponents - num_random
+
+            for _ in range(num_random):
+                opponents.append(RandomAgent(num_actions=env.num_actions))
+
+            for _ in range(num_past):
+                if checkpoint_pool:
+                    # Sample a past checkpoint
+                    _, past_agent = checkpoint_pool[np.random.randint(len(checkpoint_pool))]
+                    opponents.append(past_agent)
+                else:
+                    opponents.append(RandomAgent(num_actions=env.num_actions))
+
+        else:
+            # Phase 3: Mostly self-play (1 random for diversity, rest past checkpoints)
+            opponents.append(RandomAgent(num_actions=env.num_actions))
+
+            for _ in range(num_opponents - 1):
+                if checkpoint_pool:
+                    # Sample a past checkpoint
+                    _, past_agent = checkpoint_pool[np.random.randint(len(checkpoint_pool))]
+                    opponents.append(past_agent)
+                else:
+                    opponents.append(RandomAgent(num_actions=env.num_actions))
+
+        return opponents
+
+    # Set up initial agents (will be updated each episode)
+    agents = [agent] + [RandomAgent(num_actions=env.num_actions) for _ in range(env.num_players - 1)]
     env.set_agents(agents)
 
     # Training loop
     print(f"Starting training for {args.num_episodes} episodes...")
-    print(f"Evaluating every {args.evaluate_every} episodes\n")
+    print(f"Evaluating every {args.evaluate_every} episodes")
+    print(f"\nSelf-play curriculum:")
+    print(f"  Episodes 0-{args.curriculum_random_episodes}: All random opponents")
+    print(f"  Episodes {args.curriculum_random_episodes}-{args.curriculum_mixed_episodes}: Mixed (50% random, 50% past checkpoints)")
+    print(f"  Episodes {args.curriculum_mixed_episodes}+: Mostly self-play (1 random + past checkpoints)\n")
 
     with Logger(args.log_dir) as logger:
         for episode in range(args.num_episodes):
+            # Update opponents based on curriculum
+            opponents = get_opponents_for_episode(episode, env.num_players - 1)
+            env.set_agents([agent] + opponents)
+
             # Generate data from the environment
             trajectories, payoffs = env.run(is_training=True)
 
@@ -140,6 +197,18 @@ def train(args):
                 print(f"Win rate: {win_rate:.1f}% ({wins}W-{losses}L-{ties}T)")
                 print(f"Average score advantage: {avg_reward:.4f} points")
                 print("-" * 50 + "\n")
+
+            # Add checkpoint to pool for self-play
+            if episode > 0 and episode % args.checkpoint_pool_interval == 0:
+                # Create a deep copy of the agent for the opponent pool
+                agent_copy = deepcopy(agent)
+                checkpoint_pool.append((episode, agent_copy))
+
+                # Keep pool size manageable (max 10 checkpoints)
+                if len(checkpoint_pool) > args.max_checkpoint_pool_size:
+                    checkpoint_pool.pop(0)  # Remove oldest
+
+                print(f"Added checkpoint to pool (episode {episode}). Pool size: {len(checkpoint_pool)}")
 
         # Get the paths
         csv_path, fig_path = logger.csv_path, logger.fig_path
@@ -221,6 +290,32 @@ if __name__ == '__main__':
         type=int,
         default=15000,  # Reduced for M1 memory constraints
         help='Replay memory size (default: 15000)'
+    )
+
+    # Self-play curriculum parameters
+    parser.add_argument(
+        '--curriculum_random_episodes',
+        type=int,
+        default=2000,
+        help='Number of episodes with all random opponents (default: 2000)'
+    )
+    parser.add_argument(
+        '--curriculum_mixed_episodes',
+        type=int,
+        default=6000,
+        help='Episode when switching to mostly self-play (default: 6000)'
+    )
+    parser.add_argument(
+        '--checkpoint_pool_interval',
+        type=int,
+        default=500,
+        help='Add checkpoint to pool every N episodes (default: 500)'
+    )
+    parser.add_argument(
+        '--max_checkpoint_pool_size',
+        type=int,
+        default=10,
+        help='Maximum number of checkpoints in pool (default: 10)'
     )
 
     # Checkpoint and logging

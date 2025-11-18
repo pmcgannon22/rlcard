@@ -307,95 +307,119 @@ class ScoutEnv(Env):
 
     def _build_observation_spec(self) -> None:
         """Pre-compute observation layout so ordering is preserved."""
-        # DENSE ENCODING: Use normalized values instead of one-hot
-        # Each card position has 2 features: normalized top and bottom values
-        self._card_plane_size = self.hand_size * 2  # Changed from hand_size * rank_count
+        # IMPROVED ENCODING:
+        # - Hand cards: only top value (what matters when you play)
+        # - Table cards: 4 values (front_top, front_bottom, back_top, back_bottom)
+        #   representing scoutable cards with both orientations
+        self._hand_card_size = self.hand_size  # Only top value per card
+        self._table_card_size = 4  # front_top, front_bottom, back_top, back_bottom
+
         # owner one-hot (+1 for None), consecutive scouts, per-player hand counts,
-        # player score, table length, orientation flag, forced-scout indicator,
-        # and table front/back rank hints
-        self._extra_scalar_features = 4
+        # player score, table length, orientation flag, forced-scout indicator
         self._info_vector_len = (
-            (self.num_players + 1)
-            + 1
-            + self.num_players
-            + 2
-            + self._extra_scalar_features
+            (self.num_players + 1)  # table owner (one-hot)
+            + 1                      # consecutive scouts
+            + self.num_players       # cards per player
+            + 1                      # player points
+            + 1                      # table size
+            + 1                      # orientation flipped
+            + 1                      # forced scout flag
         )
+
         self._obs_vector_length = (
-            self._card_plane_size * 2  # hand and table (primary & secondary are now combined)
-            + self.hand_size * 2       # hand/table occupancy masks
-            + self._info_vector_len
+            self._hand_card_size        # hand cards (top values only)
+            + self._table_card_size     # table cards (front/back top/bottom)
+            + self.hand_size            # hand occupancy mask
+            + self._info_vector_len     # game state info
         )
+
         start = 0
         self._obs_slices: Dict[str, Tuple[int, int]] = {}
-        # Hand cards: hand_size * 2 (top, bottom for each position)
-        self._obs_slices['hand_cards'] = (start, start + self._card_plane_size)
-        start += self._card_plane_size
-        # Table cards: hand_size * 2 (top, bottom for each position)
-        self._obs_slices['table_cards'] = (start, start + self._card_plane_size)
-        start += self._card_plane_size
+
+        # Hand cards: hand_size (top value only for each position)
+        self._obs_slices['hand_cards'] = (start, start + self._hand_card_size)
+        start += self._hand_card_size
+
+        # Table cards: 4 values (front_top, front_bottom, back_top, back_bottom)
+        self._obs_slices['table_cards'] = (start, start + self._table_card_size)
+        start += self._table_card_size
+
+        # Hand mask: which positions in hand are occupied
         self._obs_slices['hand_mask'] = (start, start + self.hand_size)
         start += self.hand_size
-        self._obs_slices['table_mask'] = (start, start + self.hand_size)
-        start += self.hand_size
+
+        # Info vector
         self._obs_slices['info'] = (start, start + self._info_vector_len)
 
     def _build_observation_vector(self, raw_state: dict) -> np.ndarray:
         """Encode ordered hand/table information plus scalar context.
 
-        DENSE ENCODING: Each card is represented by 2 normalized values (top, bottom)
-        instead of one-hot encoding. This reduces dimensionality and preserves
-        ordinal relationships between ranks.
+        IMPROVED ENCODING:
+        - Hand cards: Only top values (what matters when playing)
+        - Table cards: Front and back cards with both orientations (for scouting decisions)
         """
-        # Hand cards: shape (hand_size, 2) for [top_value, bottom_value]
-        hand_cards = np.zeros((self.hand_size, 2), dtype=np.float32)
-        # Table cards: shape (hand_size, 2) for [top_value, bottom_value]
-        table_cards = np.zeros((self.hand_size, 2), dtype=np.float32)
+        # Hand cards: only top value for each position
+        hand_cards = np.zeros(self.hand_size, dtype=np.float32)
         hand_mask = np.zeros(self.hand_size, dtype=np.float32)
-        table_mask = np.zeros(self.hand_size, dtype=np.float32)
 
-        # Encode hand cards with normalized dense values
+        # Encode hand cards with top values only
         for i, card in enumerate(raw_state['hand']):
             if i >= self.hand_size:
                 break
-            hand_cards[i, 0] = self._normalize_rank_value(card.rank)
-            hand_cards[i, 1] = self._normalize_rank_value(card.bottom)
+            hand_cards[i] = self._normalize_rank_value(card.rank)
             hand_mask[i] = 1.0
 
-        # Encode table cards with normalized dense values
-        for j, card in enumerate(raw_state['table_set']):
-            if j >= self.hand_size:
-                break
-            table_cards[j, 0] = self._normalize_rank_value(card.rank)
-            table_cards[j, 1] = self._normalize_rank_value(card.bottom)
-            table_mask[j] = 1.0
+        # Table cards: encode front and back cards (scoutable positions)
+        # [front_top, front_bottom, back_top, back_bottom]
+        table_cards = np.zeros(4, dtype=np.float32)
+        table_set = raw_state.get('table_set', [])
 
+        if len(table_set) > 0:
+            # Front card (first card in table_set)
+            front_card = table_set[0]
+            table_cards[0] = self._normalize_rank_value(front_card.rank)       # top
+            table_cards[1] = self._normalize_rank_value(front_card.bottom)     # bottom
+
+            # Back card (last card in table_set)
+            back_card = table_set[-1]
+            table_cards[2] = self._normalize_rank_value(back_card.rank)        # top
+            table_cards[3] = self._normalize_rank_value(back_card.bottom)      # bottom
+
+        # Build info vector with game state information
         info_vec = np.zeros(self._info_vector_len, dtype=np.float32)
-        owner_one_hot_len = self.num_players + 1
+        offset = 0
+
+        # Table owner (one-hot encoding)
         owner_idx = raw_state.get('table_owner')
         owner_position = owner_idx if owner_idx is not None else self.num_players
         info_vec[owner_position] = 1.0
-        offset = owner_one_hot_len
+        offset += self.num_players + 1
+
+        # Consecutive scouts
         consecutive = raw_state.get('consecutive_scouts', 0)
         info_vec[offset] = consecutive / max(1, self.num_players - 1)
         offset += 1
+
+        # Number of cards per player
         num_cards = raw_state.get('num_cards', {})
         for pid in range(self.num_players):
             info_vec[offset + pid] = num_cards.get(pid, 0) / max(1, self.hand_size)
         offset += self.num_players
+
+        # Player points
         info_vec[offset] = raw_state.get('points', 0) / max(1, self.hand_size)
         offset += 1
+
+        # Table size
         info_vec[offset] = len(raw_state.get('table_set', [])) / max(1, self.hand_size)
         offset += 1
 
-        # Orientation (1 if flipped), forced scout flag, and table front/back ranks
+        # Orientation flipped flag
         info_vec[offset] = 1.0 if raw_state.get('orientation_flipped') else 0.0
         offset += 1
+
+        # Forced scout flag
         info_vec[offset] = 1.0 if raw_state.get('current_player_forced_scout') else 0.0
-        offset += 1
-        info_vec[offset] = self._normalize_rank_value(raw_state.get('table_front_top', 0))
-        offset += 1
-        info_vec[offset] = self._normalize_rank_value(raw_state.get('table_back_top', 0))
         offset += 1
 
         assert (
@@ -403,13 +427,12 @@ class ScoutEnv(Env):
         ), f"Scout info vector mis-sized ({offset} != {self._info_vector_len})"
 
         # Concatenate all observation components
-        # DENSE ENCODING: hand_cards and table_cards are now (hand_size, 2) arrays
+        # IMPROVED ENCODING: Cleaner representation with less redundancy
         obs_components = [
-            hand_cards.ravel(),   # Flatten (hand_size, 2) -> (hand_size * 2,)
-            table_cards.ravel(),  # Flatten (hand_size, 2) -> (hand_size * 2,)
-            hand_mask,
-            table_mask,
-            info_vec,
+            hand_cards,      # hand_size values (top only)
+            table_cards,     # 4 values (front_top, front_bottom, back_top, back_bottom)
+            hand_mask,       # hand_size values (occupancy)
+            info_vec,        # game state info
         ]
         return np.concatenate(obs_components).astype(np.float32, copy=False)
 
