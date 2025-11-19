@@ -238,8 +238,8 @@ if __name__ == '__main__':
     parser.add_argument(
         '--num_episodes',
         type=int,
-        default=10000,
-        help='Number of training episodes (default: 10000)'
+        default=150000,  # Increased from 10000 to 150000
+        help='Number of training episodes (default: 150000)'
     )
     parser.add_argument(
         '--num_eval_games',
@@ -271,8 +271,8 @@ if __name__ == '__main__':
     parser.add_argument(
         '--epsilon_decay_steps',
         type=int,
-        default=20000,
-        help='Epsilon decay steps (default: 20000)'
+        default=100000,  # Increased from 20000 to 100000 for slower exploration decay
+        help='Epsilon decay steps (default: 100000)'
     )
 
     # M1-specific optimizations
@@ -285,22 +285,22 @@ if __name__ == '__main__':
     parser.add_argument(
         '--replay_memory_size',
         type=int,
-        default=15000,  # Reduced for M1 memory constraints
-        help='Replay memory size (default: 15000)'
+        default=50000,  # Increased from 15000 to 50000 for more diverse experiences
+        help='Replay memory size (default: 50000)'
     )
 
     # Self-play curriculum parameters
     parser.add_argument(
         '--curriculum_random_episodes',
         type=int,
-        default=2000,
-        help='Number of episodes with all random opponents (default: 2000)'
+        default=10000,  # Increased from 2000 to 10000 for slower curriculum
+        help='Number of episodes with all random opponents (default: 10000)'
     )
     parser.add_argument(
         '--curriculum_mixed_episodes',
         type=int,
-        default=6000,
-        help='Episode when switching to mostly self-play (default: 6000)'
+        default=50000,  # Increased from 6000 to 50000 for slower curriculum
+        help='Episode when switching to mostly self-play (default: 50000)'
     )
     parser.add_argument(
         '--checkpoint_pool_interval',
